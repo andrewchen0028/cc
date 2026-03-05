@@ -1,0 +1,20 @@
+[project]
+name = "sandbox"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "common",
+    "backtester",
+    "rng",
+    "ipykernel",
+    "matplotlib>=3.10.8",
+]
+
+[tool.uv.sources]
+common = { workspace = true }
+backtester = { workspace = true }
+rng = { workspace = true }
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"

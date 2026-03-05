@@ -1,8 +1,5 @@
-from common import hello
-
-
 def main() -> None:
-    print(hello("foo"))
+    print("backtester")
 
 
 if __name__ == "__main__":

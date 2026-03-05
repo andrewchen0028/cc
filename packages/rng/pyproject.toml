@@ -1,11 +1,8 @@
 [project]
-name = "foo"
+name = "rng"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["common"]
-
-[tool.uv.sources]
-common = { workspace = true }
+dependencies = ["numpy"]
 
 [build-system]
 requires = ["uv_build"]

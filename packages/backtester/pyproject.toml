@@ -1,11 +1,8 @@
 [project]
-name = "bar"
+name = "backtester"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["common"]
-
-[tool.uv.sources]
-common = { workspace = true }
+dependencies = []
 
 [build-system]
 requires = ["uv_build"]
