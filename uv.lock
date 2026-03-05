@@ -2,7 +2,36 @@ version = 1
 revision = 3
 requires-python = ">=3.13"
 
+[manifest]
+members = [
+    "bar",
+    "common",
+    "foo",
+]
+
 [[package]]
-name = "cc"
+name = "bar"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "packages/bar" }
+dependencies = [
+    { name = "common" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "common", editable = "packages/common" }]
+
+[[package]]
+name = "common"
+version = "0.1.0"
+source = { editable = "packages/common" }
+
+[[package]]
+name = "foo"
+version = "0.1.0"
+source = { editable = "packages/foo" }
+dependencies = [
+    { name = "common" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "common", editable = "packages/common" }]
