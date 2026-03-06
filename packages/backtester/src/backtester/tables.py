@@ -9,18 +9,39 @@ import polars as pl
 
 
 @dataclass(slots=True)
+class CombinedTable:
+    database: str
+    """E.g. "~/combined.db"."""
+    table: str
+    """E.g. "combined"."""
+    select: str = "*"
+    """Used to override default select statement."""
+
+    ORDER_KEYS: ClassVar[tuple[str, ...]] = ("time_start", "time_end")
+    GROUP_KEYS: ClassVar[tuple[str, ...]] = (
+        "exchange",
+        "base",
+        "quote",
+        "strike",
+        "expiry",
+        "kind",
+    )
+    VALUE_KEYS: ClassVar[tuple[str, ...]] = ("iv_mark", "iv_bid", "iv_ask", "px_mark", "px_bid", "px_ask", "")
+
+
+@dataclass(slots=True)
 class OptionBarsTable:
     database: str
     table: str
     select: str = "*"
 
-    group_keys: ClassVar[tuple[str, ...]] = ("exchange", "base", "quote", "kind", "strike", "expiry")  # fmt: off
-    order_keys: ClassVar[tuple[str, ...]] = ("time_start", "time_end")
-    value_keys: ClassVar[tuple[str, ...]] = ("iv_mark", "iv_bid", "iv_ask")
+    GROUP_KEYS: ClassVar[tuple[str, ...]] = ("exchange", "base", "quote", "strike", "expiry", "kind")  # fmt: off
+    ORDER_KEYS: ClassVar[tuple[str, ...]] = ("time_start", "time_end")
+    VALUE_KEYS: ClassVar[tuple[str, ...]] = ("iv_mark", "iv_bid", "iv_ask")
     where: ClassVar[str] = f"""
-        {" AND ".join([f"{group_key} IS NOT NULL" for group_key in group_keys])} AND
-        {" AND ".join([f"{order_key} IS NOT NULL" for order_key in order_keys])} AND
-        {" AND ".join([f"{value_key} > 0" for value_key in value_keys])}
+        {" AND ".join([f"{group_key} IS NOT NULL" for group_key in GROUP_KEYS])} AND
+        {" AND ".join([f"{order_key} IS NOT NULL" for order_key in ORDER_KEYS])} AND
+        {" AND ".join([f"{value_key} > 0" for value_key in VALUE_KEYS])}
     """
 
     _con: duckdb.DuckDBPyConnection | None = None
@@ -57,9 +78,9 @@ class OptionBarsTable:
             exchange = '{option.exchange}' AND
             base = '{option.base}' AND
             quote = '{option.quote}' AND
-            kind = '{option.kind}' AND
             strike = {option.strike} AND
-            expiry = '{option.expiry}'
+            expiry = '{option.expiry}' AND
+            kind = '{option.kind}'
         """
         if start_time is not None:
             query += f" AND time_start >= '{start_time}'"
@@ -74,13 +95,13 @@ class SpotBarsTable:
     table: str
     select: str = "*"
 
-    group_keys: ClassVar[tuple[str, ...]] = ("exchange", "base", "quote")
-    order_keys: ClassVar[tuple[str, ...]] = ("time_start", "time_end")
-    value_keys: ClassVar[tuple[str, ...]] = ("px_bid", "px_ask")
+    GROUP_KEYS: ClassVar[tuple[str, ...]] = ("exchange", "base", "quote")
+    ORDER_KEYS: ClassVar[tuple[str, ...]] = ("time_start", "time_end")
+    VALUE_KEYS: ClassVar[tuple[str, ...]] = ("px_bid", "px_ask")
     where: ClassVar[str] = f"""
-        {" AND ".join([f"{group_key} IS NOT NULL" for group_key in group_keys])} AND
-        {" AND ".join([f"{order_key} IS NOT NULL" for order_key in order_keys])} AND
-        {" AND ".join([f"{value_key} > 0" for value_key in value_keys])}
+        {" AND ".join([f"{group_key} IS NOT NULL" for group_key in GROUP_KEYS])} AND
+        {" AND ".join([f"{order_key} IS NOT NULL" for order_key in ORDER_KEYS])} AND
+        {" AND ".join([f"{value_key} > 0" for value_key in VALUE_KEYS])}
     """
 
     _con: duckdb.DuckDBPyConnection | None = None

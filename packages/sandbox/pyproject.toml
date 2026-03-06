@@ -8,6 +8,7 @@ dependencies = [
     "rng",
     "ipykernel",
     "matplotlib>=3.10.8",
+    "ipdb>=0.13.13",
 ]
 
 [tool.uv.sources]

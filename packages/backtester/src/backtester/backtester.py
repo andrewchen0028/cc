@@ -1,98 +1,181 @@
+# packages/backtester/src/backtester/backtester.py
+"""Option backtester module."""
+
+from __future__ import annotations
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from backtester.instruments import Instrument, OptionInstrument
-from ibis import Schema, Table, _
-from ibis.expr.datatypes import Float64, String, Timestamp
-from typing import Literal, Mapping, Protocol, runtime_checkable
+from typing import Collection, Literal, Mapping, Protocol
 
-import utils
+import narwhals as nw
+import polars as pl
 
 
-@runtime_checkable
-class Strategy(Protocol):
-    def skip_trade(self) -> bool: ...
-    def get_target_position(self) -> Mapping[Instrument, float]: ...
+RATE_SCHEMA = nw.Schema({
+    "time_start": nw.Datetime("us", "utc"),
+    "time_end": nw.Datetime("us", "utc"),
+    "rate": nw.Float64(),
+})  # fmt: off
+
+SPOT_SCHEMA = nw.Schema({
+    "time_start": nw.Datetime("us", "utc"),
+    "time_end": nw.Datetime("us", "utc"),
+    "exchange": nw.String(),
+    "base": nw.String(),
+    "quote": nw.String(),
+    "px_bid": nw.Float64(),
+    "px_ask": nw.Float64(),
+    "px_mark": nw.Float64(),
+})  # fmt: off
+
+OPTION_SCHEMA = nw.Schema({
+    "time_start": nw.Datetime("us", "utc"),
+    "time_end": nw.Datetime("us", "utc"),
+    "exchange": nw.String(),
+    "base": nw.String(),
+    "quote": nw.String(),
+    "strike": nw.Float64(),
+    "expiry": nw.Datetime("us", "utc"),
+    "kind": nw.String(),
+    "iv_bid": nw.Float64(),
+    "iv_ask": nw.Float64(),
+    "iv_mark": nw.Float64(),
+})  # fmt: off
+
+PRICED_SCHEMA = nw.Schema({
+    # Timestamps and risk-free rate
+    "time_start": nw.Datetime("us", "utc"),
+    "time_end": nw.Datetime("us", "utc"),
+    "rate": nw.Float64(),
+    # Spot identifiers
+    "exchange_spot": nw.String(),
+    "base_spot": nw.String(),
+    "quote_spot": nw.String(),
+    # Spot prices
+    "px_bid_spot": nw.Float64(),
+    "px_ask_spot": nw.Float64(),
+    "px_mark_spot": nw.Float64(),
+    # Option identifiers
+    "exchange_option": nw.String(),
+    "base_option": nw.String(),
+    "quote_option": nw.String(),
+    "strike": nw.Float64(),
+    "expiry": nw.Datetime("us", "utc"),
+    "kind": nw.String(),
+    # Option prices and IVs
+    "px_bid_option": nw.Float64(),
+    "px_ask_option": nw.Float64(),
+    "px_mark_option": nw.Float64(),
+    "iv_bid": nw.Float64(),
+    "iv_ask": nw.Float64(),
+    "iv_mark": nw.Float64(),
+    # Option greeks
+    "delta": nw.Float64(),
+    "gamma": nw.Float64(),
+    "vega": nw.Float64(),
+    "theta": nw.Float64(),
+    "rho": nw.Float64(),
+})  # fmt: off
 
 
-class Backtester:
-    SCHEMA_BARS_SPOT = Schema({
-        "t": Timestamp(timezone="UTC", scale=6),
-        "exchange": String(),
-        "base": String(),
-        "quote": String(),
-        "spot": Float64(),
-    })  # fmt: off
+@dataclass(frozen=True, slots=True)
+class SpotInstrument:
+    exchange: str
+    base: str
+    quote: str
 
-    SCHEMA_BARS_OPTION = Schema({
-        "t": Timestamp(timezone="UTC", scale=6),
-        "exchange": String(),
-        "base": String(),
-        "quote": String(),
-        "kind": String(),
-        "strike": Float64(),
-        "expiry": Timestamp(timezone="UTC", scale=6),
-        "ivol": Float64(),
-        # TODO: These depend on spot reference instrument.
-        # We should have a separate spot table, and join
-        # on it given a selected reference spot.
-        "spot": Float64(),
-        # TODO: Similarly for rate.
-        "rate": Float64(),
-        # TODO: These should be computed using the given
-        # spot reference instrument via Black-numerical.
-        "delta": Float64(),
-        "gamma": Float64(),
-        "vega": Float64(),
-        "theta": Float64(),
-        "rho": Float64(),
-    })  # fmt: off
 
-    def __init__(self, spot_bars: Table, option_bars: Table) -> None:
-        self.spot_bars = utils.check_schema(spot_bars, self.SCHEMA_BARS_SPOT)
-        self.option_bars = utils.check_schema(option_bars, self.SCHEMA_BARS_OPTION)
+@dataclass(frozen=True, slots=True)
+class OptionInstrument:
+    exchange: str
+    base: str
+    quote: str
+    strike: float
+    expiry: datetime
+    kind: Literal["c", "p"]
+
+
+Instrument = SpotInstrument | OptionInstrument
+
+
+class MarketDataProvider:
+    def __init__(
+        self,
+        lf_rate: nw.LazyFrame,
+        lf_spot: nw.LazyFrame,
+        lf_option: nw.LazyFrame,
+    ) -> None:
+        self.lf_rate = self._check_schema(lf_rate, RATE_SCHEMA)
+        self.lf_spot = self._check_schema(lf_spot, SPOT_SCHEMA)
+        self.lf_option = self._check_schema(lf_option, OPTION_SCHEMA)
+
+        # Get priced table by joining all tables and computing Black-numerical greeks.
+        self.lf_priced = self._get_lf_priced()
+
+    def _check_schema(self, lf: nw.LazyFrame, schema: nw.Schema) -> nw.LazyFrame:
+        if False:  # TODO: implement schema checking
+            raise ValueError(f"Schema mismatch. Expected {schema}, got{lf.schema}")
+        return lf
+
+    def _get_lf_priced(self) -> nw.LazyFrame:
+        # TODO: implement actual pricing logic
+        return nw.from_native(self.lf_option).join(
+            nw.from_native(self.lf_spot), on=["time_start", "time_end"], how="inner"
+        ).rename({
+            "exchange":       "exchange_option",
+            "base":           "base_option",
+            "quote":          "quote_option",
+            "exchange_right": "exchange_spot",
+            "base_right":     "base_spot",
+            "quote_right":    "quote_spot",
+            "px_bid":         "px_bid_spot",
+            "px_ask":         "px_ask_spot",
+            "px_mark":        "px_mark_spot",
+        }).join(nw.from_native(self.lf_rate), on=["time_start", "time_end"], how="inner"
+        ).with_columns([
+            nw.col("px_mark_spot").alias(col) for col in [
+                "px_bid_option",
+                "px_ask_option",
+                "px_mark_option",
+                "delta",
+                "gamma",
+                "vega",
+                "theta",
+                "rho",
+            ]
+        ])  # fmt: off
 
     def get_bars_spot(
         self,
-        exchange: str,
-        base: str,
-        quote: str,
+        spot: SpotInstrument,
         *,
-        start: datetime | None = None,
-        end: datetime | None = None,
-    ) -> Table:
-        filtered = self.spot_bars.filter([
-            _["exchange"] == exchange,
-            _["base"] == base,
-            _["quote"] == quote,
-        ])  # fmt: off
-
-        if start is not None:
-            filtered = filtered.filter(_["t"] >= start)
-        if end is not None:
-            filtered = filtered.filter(_["t"] < end)
-        return filtered.order_by("t")
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> nw.LazyFrame:
+        return nw.from_native(self.lf_spot).filter(
+            nw.col("exchange") == spot.exchange,
+            nw.col("base") == spot.base,
+            nw.col("quote") == spot.quote,
+            nw.col("time_start") > start_time if start_time is not None else True,
+            nw.col("time_end") < end_time if end_time is not None else True,
+        )
 
     def get_bars_option(
         self,
-        exchange: str,
-        base: str,
-        quote: str,
-        kind: Literal["c", "p"],
+        option: OptionInstrument,
         *,
-        start: datetime | None = None,
-        end: datetime | None = None,
-    ) -> Table:
-        filtered = self.option_bars.filter([
-            _["exchange"] == exchange,
-            _["base"] == base,
-            _["quote"] == quote,
-            _["kind"] == kind,
-        ])  # fmt: off
-
-        if start is not None:
-            filtered = filtered.filter(_["t"] >= start)
-        if end is not None:
-            filtered = filtered.filter(_["t"] < end)
-        return filtered.order_by("t")
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> nw.LazyFrame:
+        return nw.from_native(self.lf_option).filter(
+            nw.col("exchange") == option.exchange,
+            nw.col("base") == option.base,
+            nw.col("quote") == option.quote,
+            nw.col("strike") == option.strike,
+            nw.col("expiry") == option.expiry,
+            nw.col("kind") == option.kind,
+            nw.col("time_start") > start_time if start_time is not None else True,
+            nw.col("time_end") < end_time if end_time is not None else True,
+        )
 
     def get_target_option(
         self,
@@ -101,32 +184,108 @@ class Backtester:
         quote: str,
         kind: Literal["c", "p"],
         *,
-        t: datetime,
-        delta: float,
-        tenor: timedelta,
+        target_time: datetime,
+        target_delta: float,
+        target_tenor: timedelta,
     ) -> OptionInstrument:
-        row = self.option_bars.filter([
-            _["exchange"] == exchange,
-            _["base"] == base,
-            _["quote"] == quote,
-            _["kind"] == kind,
-        ]).mutate({
-            "tenor": _["expiry"] - _["t"],
-        }).mutate({
-            "abs_err_t": (_["t"] - t).abs(),
-            "abs_err_delta": (_["delta"] - delta).abs(),
-            "abs_err_tenor": (_["tenor"] - tenor).abs(),
-        }).order_by([
-            _["abs_err_t"],
-            _["abs_err_delta"],
-            _["abs_err_tenor"],
-        ]).limit(1).to_polars()  # fmt: off
+        df = nw.from_native(self.lf_priced).filter(
+            nw.col("exchange") == exchange,
+            nw.col("base") == base,
+            nw.col("quote") == quote,
+            nw.col("kind") == kind
+        ).with_columns(
+            (nw.col("expiry") - nw.col("time_end")).alias("tenor"),
+        ).with_columns(
+            (nw.col("time_end") - target_time).abs().alias("abs_err_time"),
+            (nw.col("delta") - target_delta).abs().alias("abs_err_delta"),
+            (nw.col("tenor") - target_tenor).abs().alias("abs_err_tenor"),
+        ).sort(["abs_err_time", "abs_err_tenor", "abs_err_delta"]).head(1).collect()  # fmt: off
 
         return OptionInstrument(
-            exchange=row["exchange"].item(),
-            base=row["base"].item(),
-            quote=row["quote"].item(),
-            kind=row["kind"].item(),
-            strike=row["strike"].item(),
-            expiry=row["expiry"].item(),
+            exchange=df["exchange"].item(),
+            base=df["base"].item(),
+            quote=df["quote"].item(),
+            strike=df["strike"].item(),
+            expiry=df["expiry"].item(),
+            kind=df["kind"].item(),
         )
+
+
+def sample_polars_rate(
+    start_time: datetime = datetime(2020, 1, 1),
+    end_time: datetime = datetime(2020, 1, 10),
+    freq: timedelta = timedelta(minutes=1),
+) -> pl.LazyFrame:
+    # TODO: implement actual sampling logic
+    return pl.LazyFrame(schema={
+        "time_start": pl.Datetime("us", "utc"),
+        "time_end": pl.Datetime("us", "utc"),
+        "rate": pl.Float64(),
+    })  # fmt: off
+
+
+def sample_polars_spot(
+    exchanges: Collection[str] | None = None,
+    bases: Collection[str] | None = None,
+    quotes: Collection[str] | None = None,
+) -> pl.LazyFrame:
+    # TODO: implement actual sampling logic
+    return pl.LazyFrame(schema={
+        "time_start": pl.Datetime("us", "utc"),
+        "time_end": pl.Datetime("us", "utc"),
+        "exchange": pl.String(),
+        "base": pl.String(),
+        "quote": pl.String(),
+        "px_bid": pl.Float64(),
+        "px_ask": pl.Float64(),
+        "px_mark": pl.Float64(),
+    })  # fmt: off
+
+
+def sample_polars_option(
+    exchanges: Collection[str] | None = None,
+    bases: Collection[str] | None = None,
+    quotes: Collection[str] | None = None,
+    strikes: Collection[float] | None = None,
+    expiries: Collection[datetime] | None = None,
+    kinds: Collection[Literal["c", "p"]] | None = None,
+) -> pl.LazyFrame:
+    # TODO: implement actual sampling logic
+    return pl.LazyFrame(schema={
+        "time_start": pl.Datetime("us", "utc"),
+        "time_end": pl.Datetime("us", "utc"),
+        "exchange": pl.String(),
+        "base": pl.String(),
+        "quote": pl.String(),
+        "strike": pl.Float64(),
+        "expiry": pl.Datetime("us", "utc"),
+        "kind": pl.String(),
+        "iv_bid": pl.Float64(),
+        "iv_ask": pl.Float64(),
+        "iv_mark": pl.Float64(),
+    })  # fmt: off
+
+
+class Strategy(Protocol):
+    def skip_trade(self) -> bool: ...
+    def get_target_position(self) -> Mapping[Instrument, float]: ...
+
+
+class SingleOptionStrategy:
+    option_exchange: str
+    option_base: str
+    option_quote: str
+    option_kind: Literal["c", "p"]
+
+    target_delta: float
+    target_tenor: timedelta
+
+    hedge: Literal["notional", "delta"] | None = None
+
+    def skip_trade(self) -> bool: ...
+    def get_target_position(self) -> Mapping[Instrument, float]: ...
+
+
+class Backtester:
+    def __init__(self, mdp: MarketDataProvider) -> None: ...
+    def run(self, strategy: Strategy) -> None: ...

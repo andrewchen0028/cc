@@ -19,7 +19,10 @@ members = [
 ]
 
 [manifest.dependency-groups]
-dev = [{ name = "polars", specifier = ">=1.38.1" }]
+dev = [
+    { name = "ipdb", specifier = ">=0.13.13" },
+    { name = "polars", specifier = ">=1.38.1" },
+]
 
 [[package]]
 name = "aiobotocore"
@@ -179,6 +182,7 @@ version = "0.1.0"
 source = { editable = "packages/backtester" }
 dependencies = [
     { name = "ibis-framework", extra = ["athena", "duckdb", "polars"] },
+    { name = "narwhals" },
     { name = "polars" },
     { name = "utils" },
 ]
@@ -191,6 +195,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "ibis-framework", extras = ["athena", "duckdb", "polars"], specifier = ">=12.0.0" },
+    { name = "narwhals", specifier = ">=2.17.0" },
     { name = "polars" },
     { name = "utils", editable = "packages/utils" },
 ]
@@ -595,6 +600,19 @@ wheels = [
 ]
 
 [[package]]
+name = "ipdb"
+version = "0.13.13"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "decorator" },
+    { name = "ipython" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3d/1b/7e07e7b752017f7693a0f4d41c13e5ca29ce8cbcfdcc1fd6c4ad8c0a27a0/ipdb-0.13.13.tar.gz", hash = "sha256:e3ac6018ef05126d442af680aad863006ec19d02290561ac88b8b1c0b0cfc726", size = 17042, upload-time = "2023-03-09T15:40:57.487Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0c/4c/b075da0092003d9a55cf2ecc1cae9384a1ca4f650d51b00fc59875fe76f6/ipdb-0.13.13-py3-none-any.whl", hash = "sha256:45529994741c4ab6d2388bfa5d7b725c2cf7fe9deffabdb8a6113aa5ed449ed4", size = 12130, upload-time = "2023-03-09T15:40:55.021Z" },
+]
+
+[[package]]
 name = "ipykernel"
 version = "7.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -919,6 +937,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/0c/f7/addf1087b860ac60e6f382240f64fb99f8bfb532bb06f7c542b83c29ca61/multidict-6.7.1-cp314-cp314t-win_amd64.whl", hash = "sha256:497bde6223c212ba11d462853cfa4f0ae6ef97465033e7dc9940cdb3ab5b48e5", size = 53542, upload-time = "2026-01-26T02:46:08.809Z" },
     { url = "https://files.pythonhosted.org/packages/4c/81/4629d0aa32302ef7b2ec65c75a728cc5ff4fa410c50096174c1632e70b3e/multidict-6.7.1-cp314-cp314t-win_arm64.whl", hash = "sha256:2bbd113e0d4af5db41d5ebfe9ccaff89de2120578164f86a5d17d5a576d1e5b2", size = 44719, upload-time = "2026-01-26T02:46:11.146Z" },
     { url = "https://files.pythonhosted.org/packages/81/08/7036c080d7117f28a4af526d794aab6a84463126db031b007717c1a6676e/multidict-6.7.1-py3-none-any.whl", hash = "sha256:55d97cc6dae627efa6a6e548885712d4864b81110ac76fa4e534c03819fa4a56", size = 12319, upload-time = "2026-01-26T02:46:44.004Z" },
+]
+
+[[package]]
+name = "narwhals"
+version = "2.17.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/75/59/81d0f4cad21484083466f278e6b392addd9f4205b48d45b5c8771670ebf8/narwhals-2.17.0.tar.gz", hash = "sha256:ebd5bc95bcfa2f8e89a8ac09e2765a63055162837208e67b42d6eeb6651d5e67", size = 620306, upload-time = "2026-02-23T09:44:34.142Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4b/27/20770bd6bf8fbe1e16f848ba21da9df061f38d2e6483952c29d2bb5d1d8b/narwhals-2.17.0-py3-none-any.whl", hash = "sha256:2ac5307b7c2b275a7d66eeda906b8605e3d7a760951e188dcfff86e8ebe083dd", size = 444897, upload-time = "2026-02-23T09:44:32.006Z" },
 ]
 
 [[package]]
@@ -1517,6 +1544,7 @@ version = "0.1.0"
 source = { editable = "packages/sandbox" }
 dependencies = [
     { name = "backtester" },
+    { name = "ipdb" },
     { name = "ipykernel" },
     { name = "matplotlib" },
     { name = "rng" },
@@ -1526,6 +1554,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "backtester", editable = "packages/backtester" },
+    { name = "ipdb", specifier = ">=0.13.13" },
     { name = "ipykernel" },
     { name = "matplotlib", specifier = ">=3.10.8" },
     { name = "rng", editable = "packages/rng" },

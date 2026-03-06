@@ -90,3 +90,6 @@ def gbm(
         np.cumprod(paths[1:], out=paths[1:], axis=0)
         paths[1:] *= s0
         return paths
+
+
+from rng import spot  # noqa: E402, F401
