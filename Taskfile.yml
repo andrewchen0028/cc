@@ -1,0 +1,13 @@
+version: "3"
+
+tasks:
+  test:backtester:
+    desc: Run backtester tests
+    dir: packages/backtester
+    cmds:
+      - uv run pytest tests/ -v
+
+  test:
+    desc: Run all tests
+    cmds:
+      - task: test:backtester

@@ -1,2 +1,7 @@
 [tool.uv.workspace]
 members = ["packages/*"]
+
+[dependency-groups]
+dev = [
+    "polars>=1.38.1",
+]

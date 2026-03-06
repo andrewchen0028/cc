@@ -2,8 +2,20 @@
 name = "backtester"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "utils",
+    "ibis-framework[athena,duckdb,polars]>=12.0.0",
+    "polars",
+]
+
+[tool.uv.sources]
+utils = { workspace = true }
 
 [build-system]
 requires = ["uv_build"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
