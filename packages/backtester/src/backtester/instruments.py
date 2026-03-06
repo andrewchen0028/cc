@@ -22,3 +22,6 @@ class SpotInstrument:
     exchange: str
     base: str
     quote: str
+
+
+Instrument = OptionInstrument | SpotInstrument
