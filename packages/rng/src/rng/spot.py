@@ -27,8 +27,8 @@ def sample_spot_bars(
     sigma: float | ArrayLike | None = None,
     spread: float = 0.001,
     seed: int | None = None,
-) -> pl.DataFrame:
-    """Sample GBM spot price paths into a Polars DataFrame.
+) -> pl.LazyFrame:
+    """Sample GBM spot price paths into a Polars LazyFrame.
 
     Args:
         exchanges:    Exchanges to generate bars for.
@@ -45,8 +45,8 @@ def sample_spot_bars(
         seed:         Random seed for reproducibility.
 
     Returns:
-        DataFrame with columns:
-        exchange, base, quote, time_start, time_end, px_bid, px_ask.
+        LazyFrame with columns:
+        exchange, base, quote, time_start, time_end, px_mark, px_bid, px_ask.
     """
     for name, dt in [("start", start), ("end", end)]:
         if dt.tzinfo is None:
@@ -92,18 +92,19 @@ def sample_spot_bars(
     times_start = [start + interval * i for i in range(n)]
     times_end = [t + interval for t in times_start]
 
-    frames: list[pl.DataFrame] = []
+    frames: list[pl.LazyFrame] = []
     for j, (exchange, base, quote) in enumerate(instruments):
         mid = paths[:, j]
         hs = half_spreads[:, j]
         frames.append(
-            pl.DataFrame(
+            pl.LazyFrame(
                 {
                     "exchange": pl.Series([exchange] * n, dtype=pl.Utf8),
                     "base": pl.Series([base] * n, dtype=pl.Utf8),
                     "quote": pl.Series([quote] * n, dtype=pl.Utf8),
                     "time_start": times_start,
                     "time_end": times_end,
+                    "px_mark": mid,
                     "px_bid": mid * (1 - hs),
                     "px_ask": mid * (1 + hs),
                 }
