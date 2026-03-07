@@ -1,3 +1,6 @@
+# packages/rng/src/rng/spot.py
+"""GBM spot price path sampler."""
+# NOTE: consider deprecating
 from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from collections.abc import Collection, Sequence
