@@ -3,22 +3,23 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Collection, Literal, Mapping, Protocol
 
+import duckdb
 import narwhals as nw
 import polars as pl
 
 
 RATE_SCHEMA = nw.Schema({
-    "time_start": nw.Datetime("us", "utc"),
-    "time_end": nw.Datetime("us", "utc"),
+    "time_start": nw.Datetime("us", timezone.utc),
+    "time_end": nw.Datetime("us", timezone.utc),
     "rate": nw.Float64(),
 })  # fmt: off
 
 SPOT_SCHEMA = nw.Schema({
-    "time_start": nw.Datetime("us", "utc"),
-    "time_end": nw.Datetime("us", "utc"),
+    "time_start": nw.Datetime("us", timezone.utc),
+    "time_end": nw.Datetime("us", timezone.utc),
     "exchange": nw.String(),
     "base": nw.String(),
     "quote": nw.String(),
@@ -28,13 +29,13 @@ SPOT_SCHEMA = nw.Schema({
 })  # fmt: off
 
 OPTION_SCHEMA = nw.Schema({
-    "time_start": nw.Datetime("us", "utc"),
-    "time_end": nw.Datetime("us", "utc"),
+    "time_start": nw.Datetime("us", timezone.utc),
+    "time_end": nw.Datetime("us", timezone.utc),
     "exchange": nw.String(),
     "base": nw.String(),
     "quote": nw.String(),
     "strike": nw.Float64(),
-    "expiry": nw.Datetime("us", "utc"),
+    "expiry": nw.Datetime("us", timezone.utc),
     "kind": nw.String(),
     "iv_bid": nw.Float64(),
     "iv_ask": nw.Float64(),
@@ -43,8 +44,8 @@ OPTION_SCHEMA = nw.Schema({
 
 PRICED_SCHEMA = nw.Schema({
     # Timestamps and risk-free rate
-    "time_start": nw.Datetime("us", "utc"),
-    "time_end": nw.Datetime("us", "utc"),
+    "time_start": nw.Datetime("us", timezone.utc),
+    "time_end": nw.Datetime("us", timezone.utc),
     "rate": nw.Float64(),
     # Spot identifiers
     "exchange_spot": nw.String(),
@@ -59,7 +60,7 @@ PRICED_SCHEMA = nw.Schema({
     "base_option": nw.String(),
     "quote_option": nw.String(),
     "strike": nw.Float64(),
-    "expiry": nw.Datetime("us", "utc"),
+    "expiry": nw.Datetime("us", timezone.utc),
     "kind": nw.String(),
     # Option prices and IVs
     "px_bid_option": nw.Float64(),
@@ -107,42 +108,60 @@ class MarketDataProvider:
         self.lf_rate = self._check_schema(lf_rate, RATE_SCHEMA)
         self.lf_spot = self._check_schema(lf_spot, SPOT_SCHEMA)
         self.lf_option = self._check_schema(lf_option, OPTION_SCHEMA)
-
-        # Get priced table by joining all tables and computing Black-numerical greeks.
         self.lf_priced = self._get_lf_priced()
 
-    def _check_schema(self, lf: nw.LazyFrame, schema: nw.Schema) -> nw.LazyFrame:
-        if False:  # TODO: implement schema checking
-            raise ValueError(f"Schema mismatch. Expected {schema}, got{lf.schema}")
+    def _check_schema(self, lf: nw.LazyFrame, expected: nw.Schema) -> nw.LazyFrame:
+        actual = lf.collect_schema()
+        errors = []
+
+        for col, dtype in expected.items():
+            if col not in actual:
+                errors.append(f"missing column: {col}")
+            elif actual[col] != dtype:
+                errors.append(
+                    f"dtype mismatch for '{col}':"
+                    f"\n\texpected: {dtype}"
+                    f"\n\tgot: {actual[col]}"
+                )
+        if errors:
+            raise ValueError("\n".join(errors))
         return lf
 
     def _get_lf_priced(self) -> nw.LazyFrame:
-        # TODO: implement actual pricing logic
-        return nw.from_native(self.lf_option).join(
-            nw.from_native(self.lf_spot), on=["time_start", "time_end"], how="inner"
-        ).rename({
-            "exchange":       "exchange_option",
-            "base":           "base_option",
-            "quote":          "quote_option",
-            "exchange_right": "exchange_spot",
-            "base_right":     "base_spot",
-            "quote_right":    "quote_spot",
-            "px_bid":         "px_bid_spot",
-            "px_ask":         "px_ask_spot",
-            "px_mark":        "px_mark_spot",
-        }).join(nw.from_native(self.lf_rate), on=["time_start", "time_end"], how="inner"
-        ).with_columns([
-            nw.col("px_mark_spot").alias(col) for col in [
-                "px_bid_option",
-                "px_ask_option",
-                "px_mark_option",
-                "delta",
-                "gamma",
-                "vega",
-                "theta",
-                "rho",
-            ]
-        ])  # fmt: off
+        lf_option = nw.from_native(self.lf_option)
+        lf_spot = nw.from_native(self.lf_spot)
+        lf_rate = nw.from_native(self.lf_rate)
+        try:
+            # TODO: implement actual pricing logic
+            out = lf_option.join(
+                lf_spot, on=["time_start", "time_end"], how="inner"
+            ).rename({
+                "exchange":       "exchange_option",
+                "base":           "base_option",
+                "quote":          "quote_option",
+                "exchange_right": "exchange_spot",
+                "base_right":     "base_spot",
+                "quote_right":    "quote_spot",
+                "px_bid":         "px_bid_spot",
+                "px_ask":         "px_ask_spot",
+                "px_mark":        "px_mark_spot",
+            }).join(lf_rate, on=["time_start", "time_end"], how="inner"
+            ).with_columns([
+                nw.col("px_mark_spot").alias(col) for col in [
+                    "px_bid_option",
+                    "px_ask_option",
+                    "px_mark_option",
+                    "delta",
+                    "gamma",
+                    "vega",
+                    "theta",
+                    "rho",
+                ]
+            ])  # fmt: off
+            return self._check_schema(out, PRICED_SCHEMA)
+        except Exception as e:
+            print("WARNING: ensure rate/spot/option LazyFrames have same backend")
+            raise e
 
     def get_bars_spot(
         self,
@@ -218,10 +237,21 @@ def sample_polars_rate(
 ) -> pl.LazyFrame:
     # TODO: implement actual sampling logic
     return pl.LazyFrame(schema={
-        "time_start": pl.Datetime("us", "utc"),
-        "time_end": pl.Datetime("us", "utc"),
+        "time_start": pl.Datetime("us", "UTC"),
+        "time_end": pl.Datetime("us", "UTC"),
         "rate": pl.Float64(),
     })  # fmt: off
+
+
+def sample_duckdb_rate(
+    con: duckdb.DuckDBPyConnection,
+    start_time: datetime = datetime(2020, 1, 1),
+    end_time: datetime = datetime(2020, 1, 10),
+    freq: timedelta = timedelta(minutes=1),
+) -> nw.LazyFrame:
+    con.execute("SET TimeZone='UTC'")
+    con.register("rate", sample_polars_rate(start_time, end_time, freq))
+    return nw.from_native(con.table("rate"))
 
 
 def sample_polars_spot(
@@ -231,8 +261,8 @@ def sample_polars_spot(
 ) -> pl.LazyFrame:
     # TODO: implement actual sampling logic
     return pl.LazyFrame(schema={
-        "time_start": pl.Datetime("us", "utc"),
-        "time_end": pl.Datetime("us", "utc"),
+        "time_start": pl.Datetime("us", "UTC"),
+        "time_end": pl.Datetime("us", "UTC"),
         "exchange": pl.String(),
         "base": pl.String(),
         "quote": pl.String(),
@@ -240,6 +270,17 @@ def sample_polars_spot(
         "px_ask": pl.Float64(),
         "px_mark": pl.Float64(),
     })  # fmt: off
+
+
+def sample_duckdb_spot(
+    con: duckdb.DuckDBPyConnection,
+    exchanges: Collection[str] | None = None,
+    bases: Collection[str] | None = None,
+    quotes: Collection[str] | None = None,
+) -> nw.LazyFrame:
+    con.execute("SET TimeZone='UTC'")
+    con.register("spot", sample_polars_spot(exchanges, bases, quotes))
+    return nw.from_native(con.table("spot"))
 
 
 def sample_polars_option(
@@ -252,18 +293,35 @@ def sample_polars_option(
 ) -> pl.LazyFrame:
     # TODO: implement actual sampling logic
     return pl.LazyFrame(schema={
-        "time_start": pl.Datetime("us", "utc"),
-        "time_end": pl.Datetime("us", "utc"),
+        "time_start": pl.Datetime("us", "UTC"),
+        "time_end": pl.Datetime("us", "UTC"),
         "exchange": pl.String(),
         "base": pl.String(),
         "quote": pl.String(),
         "strike": pl.Float64(),
-        "expiry": pl.Datetime("us", "utc"),
+        "expiry": pl.Datetime("us", "UTC"),
         "kind": pl.String(),
         "iv_bid": pl.Float64(),
         "iv_ask": pl.Float64(),
         "iv_mark": pl.Float64(),
     })  # fmt: off
+
+
+def sample_duckdb_option(
+    con: duckdb.DuckDBPyConnection,
+    exchanges: Collection[str] | None = None,
+    bases: Collection[str] | None = None,
+    quotes: Collection[str] | None = None,
+    strikes: Collection[float] | None = None,
+    expiries: Collection[datetime] | None = None,
+    kinds: Collection[Literal["c", "p"]] | None = None,
+) -> nw.LazyFrame:
+    con.execute("SET TimeZone='UTC'")
+    con.register(
+        "option",
+        sample_polars_option(exchanges, bases, quotes, strikes, expiries, kinds),
+    )
+    return nw.from_native(con.table("option"))
 
 
 class Strategy(Protocol):
