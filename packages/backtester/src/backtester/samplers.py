@@ -229,7 +229,7 @@ def get_bars_spot(
             - px_bid
             - px_ask
             - px_mark
-    
+
     TODO: implementation
     """
     paths_mark = checks.check_schema(
@@ -255,8 +255,8 @@ def get_bars_option(
     base: str,
     quote: str,
     rules: rrule | Collection[rrule] = (_WEEKLY, _MONTHLY, _QUARTERLY),
-    n_moneynesses: int = 5,
-    d_moneynesses: float = 0.1,
+    n_log_moneynesses: int = 5,
+    d_log_moneynesses: float = 0.1,
 ) -> pl.LazyFrame:
     """Sample option bars.
 
@@ -266,8 +266,8 @@ def get_bars_option(
         base: base asset identifier
         quote: quote asset identifier
         rules: one or more dateutil.rrule objects defining listing and expiry rules
-        n_moneynesses: number of moneynesses to sample (default: 5, must be odd)
-        d_moneynesses: step size between moneynesses (default: 0.1)
+        n_log_moneynesses: number of log_moneynesses to sample (default: 5, must be odd)
+        d_log_moneynesses: step size between log_moneynesses (default: 0.1)
 
     Returns:
         LazyFrame with columns corresponding to BARS_OPTION schema
@@ -276,8 +276,8 @@ def get_bars_option(
     if base not in (names := marks.select(pl.col("name").unique()).collect().to_numpy().flatten().tolist()):  # fmt: off
         raise ValueError(f"Base asset {base} not found in marks (found: {names})")
 
-    marks = marks.filter(pl.col("name").eq(base))
-    t0: datetime = marks.select(pl.col("time_end").min()).collect().item()
+    marks = marks.filter(pl.col("name").eq(base)).sort(["time_start", "time_end"])
+    t0: datetime = marks.select(pl.col("time_start").min()).collect().item()
     tf: datetime = marks.select(pl.col("time_end").max()).collect().item()
 
     def _get_listings_and_expiries(
@@ -300,20 +300,20 @@ def get_bars_option(
 
         return pl.concat(lfs).sort("listing").group_by("expiry").first()
 
-    def _get_moneynesses(n: int, dm: float) -> list[float]:
+    def _get_log_moneynesses(n: int, dm: float) -> list[float]:
         if n % 2 == 0:
             raise ValueError("n must be odd")
-        return [1 + dm * i for i in range(-n // 2 + 1, n // 2 + 1)]
+        return [dm * i for i in range(-n // 2 + 1, n // 2 + 1)]
 
     listings_and_expiries = _get_listings_and_expiries(t0, tf, rules)
-    moneynesses = pl.Series(_get_moneynesses(5, 0.2)).to_frame("moneyness").lazy()
+    log_moneynesses = pl.Series(_get_log_moneynesses(n_log_moneynesses, d_log_moneynesses)).to_frame("log_moneyness").lazy()  # fmt: off
     kinds = pl.Series(["c", "p"]).to_frame("kind").lazy()
 
     out = listings_and_expiries \
         .join(marks, left_on="listing", right_on="time_end") \
         .join(kinds, how="cross") \
-        .join(moneynesses, how="cross") \
-        .with_columns((pl.col("price") * pl.col("moneyness")).round_sig_figs(2).alias("strike")) \
+        .join(log_moneynesses, how="cross") \
+        .with_columns((pl.col("price") / pl.col("log_moneyness").exp()).round_sig_figs(2).alias("strike")) \
         .select(["listing", "expiry", "strike", "kind"]) \
         .join(marks, how="cross") \
         .filter([
