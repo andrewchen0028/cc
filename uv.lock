@@ -13,7 +13,6 @@ resolution-markers = [
 [manifest]
 members = [
     "backtester",
-    "rng",
     "sandbox",
     "utils",
 ]
@@ -1728,17 +1727,6 @@ wheels = [
 ]
 
 [[package]]
-name = "rng"
-version = "0.1.0"
-source = { editable = "packages/rng" }
-dependencies = [
-    { name = "numpy" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "numpy" }]
-
-[[package]]
 name = "s3fs"
 version = "2026.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1773,7 +1761,6 @@ dependencies = [
     { name = "ipdb" },
     { name = "ipykernel" },
     { name = "matplotlib" },
-    { name = "rng" },
     { name = "utils" },
 ]
 
@@ -1783,7 +1770,6 @@ requires-dist = [
     { name = "ipdb", specifier = ">=0.13.13" },
     { name = "ipykernel" },
     { name = "matplotlib", specifier = ">=3.10.8" },
-    { name = "rng", editable = "packages/rng" },
     { name = "utils", editable = "packages/utils" },
 ]
 

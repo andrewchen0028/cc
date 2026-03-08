@@ -19,7 +19,7 @@ class MarketDataProvider:
         lf_spot: nw.LazyFrame,
         lf_option: nw.LazyFrame,
     ) -> None:
-        self.lf_rate = checks.check_schema(lf_rate, schemas.BARS_RATE)
+        self.lf_rate = checks.check_schema(lf_rate, schemas.PATH_RATE)
         self.lf_spot = checks.check_schema(lf_spot, schemas.BARS_SPOT)
         self.lf_option = checks.check_schema(lf_option, schemas.BARS_OPTION)
         self.lf_priced = self._get_lf_priced()

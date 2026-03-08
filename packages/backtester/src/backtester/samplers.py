@@ -10,15 +10,14 @@ import numpy as np
 import polars as pl
 
 
-from backtester.instruments import SpotInstrument
 from backtester import schemas
 from utils import checks
 
 
 def get_path_rate(
-    t0: datetime,
-    tf: datetime,
-    dt: timedelta,
+    t0: datetime = datetime(2025, 1, 1, tzinfo=timezone.utc),
+    tf: datetime = datetime(2025, 12, 31, tzinfo=timezone.utc),
+    dt: timedelta = timedelta(hours=1),
     *,
     kappa: float = 0.5,
     theta: float = 0.05,
@@ -69,9 +68,9 @@ def get_path_rate(
 
 
 def get_paths_mark(
-    t0: datetime,
-    tf: datetime,
-    dt: timedelta,
+    t0: datetime = datetime(2025, 1, 1, tzinfo=timezone.utc),
+    tf: datetime = datetime(2025, 12, 31, tzinfo=timezone.utc),
+    dt: timedelta = timedelta(hours=1),
     *,
     names: str | Sequence[str] | None = None,
     s0: float | Sequence[float] | np.typing.ArrayLike | None = None,
@@ -203,21 +202,18 @@ def get_paths_mark(
     return checks.check_schema(nw.from_native(out), schemas.PATHS_MARK).to_native()
 
 
-def get_bars_spot(
-    t0: datetime,
-    tf: datetime,
-    dt: timedelta,
+def to_bars_spot(
     paths_mark: pl.LazyFrame,
-    instruments: Collection[SpotInstrument],
+    exchanges: str | Sequence[str] | None = None,
+    quotes: str | Sequence[str] | None = None,
 ) -> pl.LazyFrame:
     """Sample spot bars by adding noise to mark price paths.
 
     Args:
-        t0: start time (UTC)
-        tf: end time (UTC)
-        dt: time step
         paths_mark: mark price paths (output of get_paths_mark)
-        instruments: collection of spot instruments to sample bars for
+        exchanges: collection of exchanges to sample bars for
+        bases: collection of base assets to sample bars for
+        quotes: collection of quote assets to sample bars for
 
     Returns:
         LazyFrame with columns:
@@ -229,13 +225,21 @@ def get_bars_spot(
             - px_bid
             - px_ask
             - px_mark
-
-    TODO: implementation
     """
     paths_mark = checks.check_schema(
         nw.from_native(paths_mark), schemas.PATHS_MARK
     ).to_native()
-    out = pl.LazyFrame(schema=schemas.BARS_SPOT)
+    exchanges = [exchanges] if isinstance(exchanges, str) else exchanges
+    quotes = [quotes] if isinstance(quotes, str) else quotes
+
+    out = paths_mark.rename({"name": "base", "price": "px_mark"}) \
+        .join(pl.Series(exchanges).to_frame("exchange").lazy(), how="cross") \
+        .join(pl.Series(quotes).to_frame("quote").lazy(), how="cross") \
+        .with_columns([
+            (pl.col("px_mark") * (1 - 0.01)).alias("px_bid"),
+            (pl.col("px_mark") * (1 + 0.01)).alias("px_ask"),
+        ])  # fmt: off
+
     return checks.check_schema(nw.from_native(out), schemas.BARS_SPOT).to_native()
 
 
@@ -249,7 +253,7 @@ _MONTHLY = rrule(MONTHLY, byweekday=FR(-1), byhour=8)
 _QUARTERLY = rrule(MONTHLY, bymonth=(3, 6, 9, 12), byweekday=FR(-1), byhour=8)
 
 
-def get_bars_option(
+def to_bars_option(
     marks: pl.LazyFrame,
     exchange: str,
     base: str,
