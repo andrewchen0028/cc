@@ -13,7 +13,7 @@ PATHS_MARK = nw.Schema({
 })  # fmt: off
 
 
-BARS_RATE = nw.Schema({
+PATH_RATE = nw.Schema({
     # Timestamps
     "time_start": nw.Datetime(time_zone=timezone.utc),
     "time_end": nw.Datetime(time_zone=timezone.utc),

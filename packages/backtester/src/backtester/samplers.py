@@ -2,7 +2,8 @@
 """Third-generation sample data generators for backtester module."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Collection
+from dateutil.rrule import rrule, DAILY, WEEKLY, MONTHLY, FR
+from typing import Collection, Sequence
 
 import narwhals as nw
 import numpy as np
@@ -39,12 +40,6 @@ def get_path_rate(
             - time_end
             - rate
     """
-    SCHEMA = nw.Schema({
-        "time_start": nw.Datetime(time_zone=timezone.utc),
-        "time_end": nw.Datetime(time_zone=timezone.utc),
-        "rate": nw.Float64(),
-    })  # fmt: off
-
     if errors := [
         *checks.check_datetime_timezone(t0, timezone.utc),
         *checks.check_datetime_timezone(tf, timezone.utc),
@@ -70,7 +65,7 @@ def get_path_rate(
         "time_start": times_start,
         "time_end": times_end,
         "rate": rates,
-    })), SCHEMA).to_native()  # fmt: off
+    })), schemas.PATH_RATE).to_native()  # fmt: off
 
 
 def get_paths_mark(
@@ -78,10 +73,10 @@ def get_paths_mark(
     tf: datetime,
     dt: timedelta,
     *,
-    names: str | list[str] | None = None,
-    s0: float | list[float] | np.typing.ArrayLike | None = None,
-    mu: float | list[float] | np.typing.ArrayLike | None = None,
-    sigma: float | list[float] | np.typing.ArrayLike | None = None,
+    names: str | Sequence[str] | None = None,
+    s0: float | Sequence[float] | np.typing.ArrayLike | None = None,
+    mu: float | Sequence[float] | np.typing.ArrayLike | None = None,
+    sigma: float | Sequence[float] | np.typing.ArrayLike | None = None,
 ) -> pl.LazyFrame:
     """Sample fair-price paths via multivariate geometric Brownian motion.
 
@@ -99,13 +94,26 @@ def get_paths_mark(
         LazyFrame with columns: time_start, time_end, name, price
     """
 
+    # If *no* optional arguments are provided, then set defaults.
+    if names is None and s0 is None and mu is None and sigma is None:
+        names = ["btc", "eth", "sol", "hype"]
+        s0 = [100_000, 5_000, 150, 30]
+        mu = [0.10, 0.15, 0.20, 0.25]
+        # volatilities [50, 70, 100, 150] and pairwise correlations which decrease with price
+        sigma = np.array([
+            [0.50, 0.40, 0.30, 0.20],
+            [0.40, 0.70, 0.25, 0.15],
+            [0.30, 0.25, 1.00, 0.10],
+            [0.20, 0.15, 0.10, 1.50],
+        ])  # fmt: off
+
     # Infer n_assets from the first sized argument provided
     def _infer_n(x: object) -> int | None:
         if x is None or isinstance(x, (int, float)):
             return None
         if isinstance(x, str):
             return 1
-        if isinstance(x, list):
+        if isinstance(x, Sequence) and not isinstance(x, str):
             return len(x)
         a = np.asarray(x)
         if a.ndim == 0:
@@ -221,9 +229,125 @@ def get_bars_spot(
             - px_bid
             - px_ask
             - px_mark
+    
+    TODO: implementation
     """
     paths_mark = checks.check_schema(
         nw.from_native(paths_mark), schemas.PATHS_MARK
     ).to_native()
     out = pl.LazyFrame(schema=schemas.BARS_SPOT)
     return checks.check_schema(nw.from_native(out), schemas.BARS_SPOT).to_native()
+
+
+# Seven daily contracts (08:00 UTC)
+_DAILY = rrule(DAILY, byhour=8)
+# Four weekly contracts (Fridays at 08:00 UTC)
+_WEEKLY = rrule(WEEKLY, byweekday=FR, byhour=8)
+# Three monthly contracts (last Friday of each month at 08:00 UTC)
+_MONTHLY = rrule(MONTHLY, byweekday=FR(-1), byhour=8)
+# Four quarterly contracts (last Friday of Mar, Jun, Sep, Dec at 08:00 UTC)
+_QUARTERLY = rrule(MONTHLY, bymonth=(3, 6, 9, 12), byweekday=FR(-1), byhour=8)
+
+
+def get_bars_option(
+    marks: pl.LazyFrame,
+    exchange: str,
+    base: str,
+    quote: str,
+    rules: rrule | Collection[rrule] = (_WEEKLY, _MONTHLY, _QUARTERLY),
+    n_moneynesses: int = 5,
+    d_moneynesses: float = 0.1,
+) -> pl.LazyFrame:
+    """Sample option bars.
+
+    Args:
+        marks: mark price path LazyFrame (output of get_paths_mark)
+        exchange: exchange identifier
+        base: base asset identifier
+        quote: quote asset identifier
+        rules: one or more dateutil.rrule objects defining listing and expiry rules
+        n_moneynesses: number of moneynesses to sample (default: 5, must be odd)
+        d_moneynesses: step size between moneynesses (default: 0.1)
+
+    Returns:
+        LazyFrame with columns corresponding to BARS_OPTION schema
+    """
+
+    if base not in (names := marks.select(pl.col("name").unique()).collect().to_numpy().flatten().tolist()):  # fmt: off
+        raise ValueError(f"Base asset {base} not found in marks (found: {names})")
+
+    marks = marks.filter(pl.col("name").eq(base))
+    t0: datetime = marks.select(pl.col("time_end").min()).collect().item()
+    tf: datetime = marks.select(pl.col("time_end").max()).collect().item()
+
+    def _get_listings_and_expiries(
+        t0: datetime,
+        tf: datetime,
+        rules: rrule | Collection[rrule],
+    ) -> pl.LazyFrame:
+        if isinstance(rules, rrule):
+            rules = (rules,)
+
+        lfs: list[pl.LazyFrame] = []
+
+        for rule in rules:
+            r = rule.replace(dtstart=datetime(1, 1, 1, tzinfo=timezone.utc))
+            listings = [r.before(t0, inc=True)] + r.between(t0, tf, inc=True)
+            expiries = r.between(t0, tf, inc=True) + [r.after(tf, inc=True)]
+            listings = pl.Series("listing", listings)
+            expiries = pl.Series("expiry", expiries)
+            lfs.append(pl.select(listings, expiries, eager=False))
+
+        return pl.concat(lfs).sort("listing").group_by("expiry").first()
+
+    def _get_moneynesses(n: int, dm: float) -> list[float]:
+        if n % 2 == 0:
+            raise ValueError("n must be odd")
+        return [1 + dm * i for i in range(-n // 2 + 1, n // 2 + 1)]
+
+    listings_and_expiries = _get_listings_and_expiries(t0, tf, rules)
+    moneynesses = pl.Series(_get_moneynesses(5, 0.2)).to_frame("moneyness").lazy()
+    kinds = pl.Series(["c", "p"]).to_frame("kind").lazy()
+
+    out = listings_and_expiries \
+        .join(marks, left_on="listing", right_on="time_end") \
+        .join(kinds, how="cross") \
+        .join(moneynesses, how="cross") \
+        .with_columns((pl.col("price") * pl.col("moneyness")).round_sig_figs(2).alias("strike")) \
+        .select(["listing", "expiry", "strike", "kind"]) \
+        .join(marks, how="cross") \
+        .filter([
+            pl.col("time_start") <= pl.col("listing"),
+            pl.col("time_end") <= pl.col("expiry"),
+        ]) \
+        .with_columns([
+            # TODO: replace with SVI
+            pl.lit(1.00).alias("iv_mark"),
+            pl.lit(0.99).alias("iv_bid"),
+            pl.lit(1.01).alias("iv_ask"),
+        ]) \
+        .with_columns([
+            # TODO: replace with actual identifiers
+            pl.lit("drbt").alias("exchange"),
+            pl.lit("btc").alias("base"),
+            pl.lit("usd").alias("quote"),
+        ]) \
+        .select([
+            # Timestamps
+            "time_start",
+            "time_end",
+            # Identifiers
+            "exchange",
+            "base",
+            "quote",
+            "strike",
+            "listing",
+            "expiry",
+            "kind",
+            # Values
+            "iv_bid",
+            "iv_ask",
+            "iv_mark",
+        ])  # fmt: off
+
+    return checks.check_schema(nw.from_native(out), schemas.BARS_OPTION).to_native()
