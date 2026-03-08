@@ -4,6 +4,7 @@
 from datetime import datetime, timezone
 
 import narwhals as nw
+import numpy as np
 
 
 def check_datetime_timezone(dt: datetime, tzinfo: timezone) -> list[str]:
@@ -17,6 +18,30 @@ def check_datetime_order(t0: datetime, tf: datetime, strict: bool = True) -> lis
         return [f"tf must be after t0, got t0={t0} and tf={tf}"]
     if not strict and tf < t0:
         return [f"tf must be at or after t0, got t0={t0} and tf={tf}"]
+    return []
+
+
+def check_vector_length(name: str, v: np.typing.ArrayLike, expected: int) -> list[str]:
+    a = np.asarray(v, dtype=float)
+    if a.ndim != 1:
+        return [f"{name} must be 1-D, got shape {a.shape}"]
+    if a.shape[0] != expected:
+        return [f"{name} must have length {expected}, got {a.shape[0]}"]
+    return []
+
+
+def check_matrix_shape(name: str, m: np.typing.ArrayLike, expected: tuple[int, ...]) -> list[str]:
+    a = np.asarray(m, dtype=float)
+    if a.shape != expected:
+        return [f"{name} must have shape {expected}, got {a.shape}"]
+    return []
+
+
+def check_matrix_positive_semidefinite(name: str, m: np.typing.ArrayLike) -> list[str]:
+    a = np.asarray(m, dtype=float)
+    eigenvalues = np.linalg.eigvalsh(a)
+    if np.any(eigenvalues < -1e-10):
+        return [f"{name} must be positive semi-definite, got min eigenvalue {eigenvalues.min():.6e}"]
     return []
 
 
