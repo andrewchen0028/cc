@@ -1,10 +1,26 @@
 # packages/utils/src/utils/checks.py
 """Utility functions for validation checks."""
 
+from datetime import datetime, timezone
+
 import narwhals as nw
 
 
-def check_schema(self, lf: nw.LazyFrame, expected: nw.Schema) -> nw.LazyFrame:
+def check_datetime_timezone(dt: datetime, tzinfo: timezone) -> list[str]:
+    if dt.tzinfo != tzinfo:
+        return [f"{dt} must have {tzinfo=}, got {dt.tzinfo=}"]
+    return []
+
+
+def check_datetime_order(t0: datetime, tf: datetime, strict: bool = True) -> list[str]:
+    if strict and tf <= t0:
+        return [f"tf must be after t0, got t0={t0} and tf={tf}"]
+    if not strict and tf < t0:
+        return [f"tf must be at or after t0, got t0={t0} and tf={tf}"]
+    return []
+
+
+def check_schema(lf: nw.LazyFrame, expected: nw.Schema) -> nw.LazyFrame:
     actual = lf.collect_schema()
     errors = []
 
@@ -20,32 +36,3 @@ def check_schema(self, lf: nw.LazyFrame, expected: nw.Schema) -> nw.LazyFrame:
     if errors:
         raise ValueError("\n".join(errors))
     return lf
-
-
-""" Deprecated: old ibis code
-import ibis
-from ibis import Table
-from ibis.expr.schema import IntoSchema
-
-
-def check_schema(table: Table, schema: IntoSchema, *, strict: bool = True) -> Table:
-    expected = ibis.schema(schema)
-    actual = table.schema()
-
-    errors = []
-    for col, dtype in expected.items():
-        if col not in actual:
-            errors.append(f"  missing column: {col!r}")
-        elif actual[col] != dtype:
-            errors.append(f"  column {col!r}: expected {dtype}, got {actual[col]}")
-
-    if strict and (extra := set(actual) - set(expected)):
-        errors.append(f"  unexpected columns: {sorted(extra)}")
-
-    if errors:
-        raise TypeError(
-            "\n" + "\n".join(errors) + f"\nexpected: {expected}\nactual:   {actual}"
-        )
-
-    return table
-"""

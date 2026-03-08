@@ -1,0 +1,82 @@
+# packages/backtester/src/backtester/schemas.py
+"""Reference schemas for backtester module."""
+
+from datetime import timezone
+import narwhals as nw
+
+
+BARS_RATE = nw.Schema({
+    # Timestamps
+    "time_start": nw.Datetime(time_zone=timezone.utc),
+    "time_end": nw.Datetime(time_zone=timezone.utc),
+    # Value
+    "rate": nw.Float64(),
+})  # fmt: off
+
+BARS_SPOT = nw.Schema({
+    # Timestamps
+    "time_start": nw.Datetime(time_zone=timezone.utc),
+    "time_end": nw.Datetime(time_zone=timezone.utc),
+    # Identifiers
+    "exchange": nw.String(),
+    "base": nw.String(),
+    "quote": nw.String(),
+    # Values
+    "px_bid": nw.Float64(),
+    "px_ask": nw.Float64(),
+    "px_mark": nw.Float64(),
+})  # fmt: off
+
+BARS_OPTION = nw.Schema({
+    # Timestamps
+    "time_start": nw.Datetime(time_zone=timezone.utc),
+    "time_end": nw.Datetime(time_zone=timezone.utc),
+    # Identifiers
+    "exchange": nw.String(),
+    "base": nw.String(),
+    "quote": nw.String(),
+    "strike": nw.Float64(),
+    "listing": nw.Datetime(time_zone=timezone.utc),
+    "expiry": nw.Datetime(time_zone=timezone.utc),
+    "kind": nw.String(),
+    # Values
+    "iv_bid": nw.Float64(),
+    "iv_ask": nw.Float64(),
+    "iv_mark": nw.Float64(),
+})  # fmt: off
+
+BARS_PRICED = nw.Schema({
+    # Timestamps
+    "time_start": nw.Datetime(time_zone=timezone.utc),
+    "time_end": nw.Datetime(time_zone=timezone.utc),
+    # Identifiers (spot)
+    "exchange_spot": nw.String(),
+    "base_spot": nw.String(),
+    "quote_spot": nw.String(),
+    # Identifiers (option)
+    "exchange_option": nw.String(),
+    "base_option": nw.String(),
+    "quote_option": nw.String(),
+    "strike": nw.Float64(),
+    "listing": nw.Datetime(time_zone=timezone.utc),
+    "expiry": nw.Datetime(time_zone=timezone.utc),
+    "kind": nw.String(),
+    # Values (rate)
+    "rate": nw.Float64(),
+    # Values (spot)
+    "px_bid_spot": nw.Float64(),
+    "px_ask_spot": nw.Float64(),
+    "px_mark_spot": nw.Float64(),
+    # Values (option)
+    "px_bid_option": nw.Float64(),
+    "px_ask_option": nw.Float64(),
+    "px_mark_option": nw.Float64(),
+    "iv_bid": nw.Float64(),
+    "iv_ask": nw.Float64(),
+    "iv_mark": nw.Float64(),
+    "delta": nw.Float64(),
+    "gamma": nw.Float64(),
+    "vega": nw.Float64(),
+    "theta": nw.Float64(),
+    "rho": nw.Float64(),
+})  # fmt: off

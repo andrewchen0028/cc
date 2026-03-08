@@ -4,5 +4,6 @@ members = ["packages/*"]
 [dependency-groups]
 dev = [
     "ipdb>=0.13.13",
+    "marimo>=0.20.4",
     "polars>=1.38.1",
 ]

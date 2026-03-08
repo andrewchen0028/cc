@@ -1,102 +1,69 @@
-# packages/backtester/src/backtester/samplers.py
-"""Sample data generators for backtester module."""
+# packages/backtester/src/backtester/samplers3.py
+"""Third-generation sample data generators for backtester module."""
 
-from datetime import datetime, timedelta
-from typing import Collection, Literal
-import duckdb
-import polars as pl
+from datetime import datetime, timedelta, timezone
+
 import narwhals as nw
+import numpy as np
+import polars as pl
+
+from backtester.backtester import checks
 
 
-def sample_polars_rate(
-    start_time: datetime = datetime(2020, 1, 1),
-    end_time: datetime = datetime(2020, 1, 10),
-    freq: timedelta = timedelta(minutes=1),
+def get_path_rate(
+    t0: datetime,
+    tf: datetime,
+    dt: timedelta,
+    *,
+    kappa: float = 0.5,
+    theta: float = 0.05,
+    sigma: float = 0.01,
 ) -> pl.LazyFrame:
-    # TODO: implement actual sampling logic
-    return pl.LazyFrame(schema={
-        "time_start": pl.Datetime("us", "UTC"),
-        "time_end": pl.Datetime("us", "UTC"),
-        "rate": pl.Float64(),
+    """Sample risk-free rate path via Vasicek model.
+
+    Args:
+        t0: start time
+        tf: end time
+        dt: time step
+        kappa: mean reversion speed (default: 0.5)
+        theta: long-term mean (default: 0.05)
+        sigma: volatility (default: 0.01)
+
+    Returns:
+        LazyFrame with columns:
+            - time_start
+            - time_end
+            - rate
+    """
+    SCHEMA = nw.Schema({
+        "time_start": nw.Datetime(time_zone=timezone.utc),
+        "time_end": nw.Datetime(time_zone=timezone.utc),
+        "rate": nw.Float64(),
     })  # fmt: off
 
+    if errors := [
+        *checks.check_datetime_timezone(t0, timezone.utc),
+        *checks.check_datetime_timezone(tf, timezone.utc),
+        *checks.check_datetime_order(t0, tf),
+    ]:
+        raise ValueError(f"Invalid input\n{'\n'.join(f'- {e}' for e in errors)}")
 
-def sample_duckdb_rate(
-    con: duckdb.DuckDBPyConnection,
-    start_time: datetime = datetime(2020, 1, 1),
-    end_time: datetime = datetime(2020, 1, 10),
-    freq: timedelta = timedelta(minutes=1),
-) -> nw.LazyFrame:
-    con.execute("SET TimeZone='UTC'")
-    con.register("rate", sample_polars_rate(start_time, end_time, freq))
-    return nw.from_native(con.table("rate"))
+    # Build time grid using polars datetime_range
+    times_start = pl.datetime_range(t0, tf - dt, dt, eager=True).alias("time_start")
+    times_end = pl.datetime_range(t0 + dt, tf, dt, eager=True).alias("time_end")
+    n_steps = len(times_start)
 
+    # Vasicek: dr = kappa*(theta - r)*dt + sigma*dW
+    dt_years = dt / timedelta(days=365.25)
+    dW = np.random.standard_normal(n_steps)
+    r = theta
+    rates = []
+    for i in range(n_steps):
+        rates.append(r)
+        r = r + kappa * (theta - r) * dt_years + sigma * np.sqrt(dt_years) * dW[i]
 
-def sample_polars_spot(
-    exchanges: Collection[str] | None = None,
-    bases: Collection[str] | None = None,
-    quotes: Collection[str] | None = None,
-) -> pl.LazyFrame:
-    # TODO: implement actual sampling logic
-    return pl.LazyFrame(schema={
-        "time_start": pl.Datetime("us", "UTC"),
-        "time_end": pl.Datetime("us", "UTC"),
-        "exchange": pl.String(),
-        "base": pl.String(),
-        "quote": pl.String(),
-        "px_bid": pl.Float64(),
-        "px_ask": pl.Float64(),
-        "px_mark": pl.Float64(),
-    })  # fmt: off
-
-
-def sample_duckdb_spot(
-    con: duckdb.DuckDBPyConnection,
-    exchanges: Collection[str] | None = None,
-    bases: Collection[str] | None = None,
-    quotes: Collection[str] | None = None,
-) -> nw.LazyFrame:
-    con.execute("SET TimeZone='UTC'")
-    con.register("spot", sample_polars_spot(exchanges, bases, quotes))
-    return nw.from_native(con.table("spot"))
-
-
-def sample_polars_option(
-    exchanges: Collection[str] | None = None,
-    bases: Collection[str] | None = None,
-    quotes: Collection[str] | None = None,
-    strikes: Collection[float] | None = None,
-    expiries: Collection[datetime] | None = None,
-    kinds: Collection[Literal["c", "p"]] | None = None,
-) -> pl.LazyFrame:
-    # TODO: implement actual sampling logic
-    return pl.LazyFrame(schema={
-        "time_start": pl.Datetime("us", "UTC"),
-        "time_end": pl.Datetime("us", "UTC"),
-        "exchange": pl.String(),
-        "base": pl.String(),
-        "quote": pl.String(),
-        "strike": pl.Float64(),
-        "expiry": pl.Datetime("us", "UTC"),
-        "kind": pl.String(),
-        "iv_bid": pl.Float64(),
-        "iv_ask": pl.Float64(),
-        "iv_mark": pl.Float64(),
-    })  # fmt: off
-
-
-def sample_duckdb_option(
-    con: duckdb.DuckDBPyConnection,
-    exchanges: Collection[str] | None = None,
-    bases: Collection[str] | None = None,
-    quotes: Collection[str] | None = None,
-    strikes: Collection[float] | None = None,
-    expiries: Collection[datetime] | None = None,
-    kinds: Collection[Literal["c", "p"]] | None = None,
-) -> nw.LazyFrame:
-    con.execute("SET TimeZone='UTC'")
-    con.register(
-        "option",
-        sample_polars_option(exchanges, bases, quotes, strikes, expiries, kinds),
-    )
-    return nw.from_native(con.table("option"))
+    return checks.check_schema(nw.from_native(pl.LazyFrame({
+        "time_start": times_start,
+        "time_end": times_end,
+        "rate": rates,
+    })), SCHEMA).to_native()  # fmt: off

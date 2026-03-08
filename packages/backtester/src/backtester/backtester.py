@@ -2,80 +2,14 @@
 """Option backtester module."""
 
 from __future__ import annotations
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Literal, Mapping, Protocol
 
 import narwhals as nw
 
 from backtester.instruments import Instrument, OptionInstrument, SpotInstrument
+from backtester import schemas
 from utils import checks
-
-
-RATE_SCHEMA = nw.Schema({
-    "time_start": nw.Datetime(time_zone=timezone.utc),
-    "time_end": nw.Datetime(time_zone=timezone.utc),
-    "rate": nw.Float64(),
-})  # fmt: off
-
-SPOT_SCHEMA = nw.Schema({
-    "time_start": nw.Datetime(time_zone=timezone.utc),
-    "time_end": nw.Datetime(time_zone=timezone.utc),
-    "exchange": nw.String(),
-    "base": nw.String(),
-    "quote": nw.String(),
-    "px_bid": nw.Float64(),
-    "px_ask": nw.Float64(),
-    "px_mark": nw.Float64(),
-})  # fmt: off
-
-OPTION_SCHEMA = nw.Schema({
-    "time_start": nw.Datetime(time_zone=timezone.utc),
-    "time_end": nw.Datetime(time_zone=timezone.utc),
-    "exchange": nw.String(),
-    "base": nw.String(),
-    "quote": nw.String(),
-    "strike": nw.Float64(),
-    "expiry": nw.Datetime(time_zone=timezone.utc),
-    "kind": nw.String(),
-    "iv_bid": nw.Float64(),
-    "iv_ask": nw.Float64(),
-    "iv_mark": nw.Float64(),
-})  # fmt: off
-
-PRICED_SCHEMA = nw.Schema({
-    # Timestamps and risk-free rate
-    "time_start": nw.Datetime(time_zone=timezone.utc),
-    "time_end": nw.Datetime(time_zone=timezone.utc),
-    "rate": nw.Float64(),
-    # Spot identifiers
-    "exchange_spot": nw.String(),
-    "base_spot": nw.String(),
-    "quote_spot": nw.String(),
-    # Spot prices
-    "px_bid_spot": nw.Float64(),
-    "px_ask_spot": nw.Float64(),
-    "px_mark_spot": nw.Float64(),
-    # Option identifiers
-    "exchange_option": nw.String(),
-    "base_option": nw.String(),
-    "quote_option": nw.String(),
-    "strike": nw.Float64(),
-    "expiry": nw.Datetime(time_zone=timezone.utc),
-    "kind": nw.String(),
-    # Option prices and IVs
-    "px_bid_option": nw.Float64(),
-    "px_ask_option": nw.Float64(),
-    "px_mark_option": nw.Float64(),
-    "iv_bid": nw.Float64(),
-    "iv_ask": nw.Float64(),
-    "iv_mark": nw.Float64(),
-    # Option greeks
-    "delta": nw.Float64(),
-    "gamma": nw.Float64(),
-    "vega": nw.Float64(),
-    "theta": nw.Float64(),
-    "rho": nw.Float64(),
-})  # fmt: off
 
 
 class MarketDataProvider:
@@ -85,9 +19,9 @@ class MarketDataProvider:
         lf_spot: nw.LazyFrame,
         lf_option: nw.LazyFrame,
     ) -> None:
-        self.lf_rate = checks.check_schema(self, lf_rate, RATE_SCHEMA)
-        self.lf_spot = checks.check_schema(self, lf_spot, SPOT_SCHEMA)
-        self.lf_option = checks.check_schema(self, lf_option, OPTION_SCHEMA)
+        self.lf_rate = checks.check_schema(lf_rate, schemas.BARS_RATE)
+        self.lf_spot = checks.check_schema(lf_spot, schemas.BARS_SPOT)
+        self.lf_option = checks.check_schema(lf_option, schemas.BARS_OPTION)
         self.lf_priced = self._get_lf_priced()
 
     def _get_lf_priced(self) -> nw.LazyFrame:
@@ -121,7 +55,7 @@ class MarketDataProvider:
                     "rho",
                 ]
             ])  # fmt: off
-            return checks.check_schema(self, out, PRICED_SCHEMA)
+            return checks.check_schema(out, schemas.BARS_PRICED)
         except Exception as e:
             print("WARNING: ensure rate/spot/option LazyFrames have same backend")
             raise e
@@ -153,6 +87,7 @@ class MarketDataProvider:
             nw.col("base") == option.base,
             nw.col("quote") == option.quote,
             nw.col("strike") == option.strike,
+            nw.col("listing") == option.listing,
             nw.col("expiry") == option.expiry,
             nw.col("kind") == option.kind,
             nw.col("time_start") > start_time if start_time is not None else True,
@@ -188,6 +123,7 @@ class MarketDataProvider:
             base=df["base"].item(),
             quote=df["quote"].item(),
             strike=df["strike"].item(),
+            listing=df["listing"].item(),
             expiry=df["expiry"].item(),
             kind=df["kind"].item(),
         )
