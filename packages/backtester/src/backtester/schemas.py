@@ -5,6 +5,14 @@ from datetime import timezone
 import narwhals as nw
 
 
+PATHS_MARK = nw.Schema({
+    "time_start": nw.Datetime(time_zone=timezone.utc),
+    "time_end": nw.Datetime(time_zone=timezone.utc),
+    "name": nw.String(),
+    "price": nw.Float64(),
+})  # fmt: off
+
+
 BARS_RATE = nw.Schema({
     # Timestamps
     "time_start": nw.Datetime(time_zone=timezone.utc),

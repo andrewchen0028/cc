@@ -2,12 +2,16 @@
 """Third-generation sample data generators for backtester module."""
 
 from datetime import datetime, timedelta, timezone
+from typing import Collection
 
 import narwhals as nw
 import numpy as np
 import polars as pl
 
-from backtester.backtester import checks
+
+from backtester.instruments import SpotInstrument
+from backtester import schemas
+from utils import checks
 
 
 def get_path_rate(
@@ -94,12 +98,6 @@ def get_paths_mark(
     Returns:
         LazyFrame with columns: time_start, time_end, name, price
     """
-    SCHEMA = nw.Schema({
-        "time_start": nw.Datetime(time_zone=timezone.utc),
-        "time_end": nw.Datetime(time_zone=timezone.utc),
-        "name": nw.String(),
-        "price": nw.Float64(),
-    })  # fmt: off
 
     # Infer n_assets from the first sized argument provided
     def _infer_n(x: object) -> int | None:
@@ -125,19 +123,19 @@ def get_paths_mark(
 
     # Normalize s0
     if s0 is None:
-        s0_vec = np.ones(n_assets)
+        s0 = np.ones(n_assets)
     elif isinstance(s0, (int, float)):
-        s0_vec = np.array([float(s0)])
+        s0 = np.array([float(s0)])
     else:
-        s0_vec = np.asarray(s0, dtype=float)
+        s0 = np.asarray(s0, dtype=float)
 
     # Normalize mu
     if mu is None:
-        mu_vec = np.zeros(n_assets)
+        mu = np.zeros(n_assets)
     elif isinstance(mu, (int, float)):
-        mu_vec = np.array([float(mu)])
+        mu = np.array([float(mu)])
     else:
-        mu_vec = np.asarray(mu, dtype=float)
+        mu = np.asarray(mu, dtype=float)
 
     # Normalize sigma
     if sigma is None:
@@ -156,8 +154,8 @@ def get_paths_mark(
         *checks.check_datetime_timezone(t0, timezone.utc),
         *checks.check_datetime_timezone(tf, timezone.utc),
         *checks.check_datetime_order(t0, tf),
-        *checks.check_vector_length("s0", s0_vec, n_assets),
-        *checks.check_vector_length("mu", mu_vec, n_assets),
+        *checks.check_vector_length("s0", s0, n_assets),
+        *checks.check_vector_length("mu", mu, n_assets),
         *checks.check_matrix_shape("sigma", sigma_mat, (n_assets, n_assets)),
         *checks.check_matrix_positive_semidefinite("sigma", sigma_mat),
     ]:
@@ -172,13 +170,12 @@ def get_paths_mark(
     dt_years = dt / timedelta(days=365.25)
     L = np.linalg.cholesky(sigma_mat)
     dW = np.random.standard_normal((n_steps, n_assets))
-    correlated_dW = dW @ L.T  # (n_steps, n_assets)
+    dX = dW @ L.T  # (n_steps, n_assets)
 
-    drift = (mu_vec - 0.5 * np.diag(sigma_mat)) * dt_years
-    diffusion = correlated_dW * np.sqrt(dt_years)
-    log_returns = drift + diffusion  # (n_steps, n_assets)
+    drift = (mu - 0.5 * np.diag(sigma_mat)) * dt_years
+    log_returns = drift + np.sqrt(dt_years) * dX @ L.T  # (n_steps, n_assets)
 
-    prices = s0_vec * np.exp(np.cumsum(log_returns, axis=0))  # (n_steps, n_assets)
+    prices = s0 * np.exp(np.cumsum(log_returns, axis=0))  # (n_steps, n_assets)
 
     # Build long-format DataFrame: repeat times for each asset, stack prices
     dfs: list[pl.DataFrame] = []
@@ -195,4 +192,38 @@ def get_paths_mark(
         )
 
     out = pl.concat(dfs).lazy()
-    return checks.check_schema(nw.from_native(out), SCHEMA).to_native()
+    return checks.check_schema(nw.from_native(out), schemas.PATHS_MARK).to_native()
+
+
+def get_bars_spot(
+    t0: datetime,
+    tf: datetime,
+    dt: timedelta,
+    paths_mark: pl.LazyFrame,
+    instruments: Collection[SpotInstrument],
+) -> pl.LazyFrame:
+    """Sample spot bars by adding noise to mark price paths.
+
+    Args:
+        t0: start time (UTC)
+        tf: end time (UTC)
+        dt: time step
+        paths_mark: mark price paths (output of get_paths_mark)
+        instruments: collection of spot instruments to sample bars for
+
+    Returns:
+        LazyFrame with columns:
+            - time_start
+            - time_end
+            - exchange
+            - base
+            - quote
+            - px_bid
+            - px_ask
+            - px_mark
+    """
+    paths_mark = checks.check_schema(
+        nw.from_native(paths_mark), schemas.PATHS_MARK
+    ).to_native()
+    out = pl.LazyFrame(schema=schemas.BARS_SPOT)
+    return checks.check_schema(nw.from_native(out), schemas.BARS_SPOT).to_native()
