@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
-from backtester.backtester import MarketDataProvider
-from backtester.instruments import SpotInstrument
+
+from backtester import io
+from backtester.types import SpotInstrument
 from backtester import samplers
 
 t0 = datetime(2023, 1, 1, tzinfo=timezone.utc)
@@ -15,7 +16,10 @@ bars_spot = paths_mark.pipe(samplers.to_bars_spot, ["binc", "cbse"], ["usd", "us
 bars_option = paths_mark.pipe(samplers.to_bars_option, "drbt", "btc", "usd")
 
 print(
-    MarketDataProvider(path_rate, bars_spot, bars_option).get_target_option(
+    io.get_target_option(
+        path_rate,
+        bars_spot,
+        bars_option,
         "drbt",
         "btc",
         "usd",

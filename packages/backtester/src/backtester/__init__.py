@@ -1,4 +1,9 @@
-from backtester.backtester import Backtester
-from backtester.instruments import OptionInstrument
+from backtester.core import Backtester
+from backtester.types import Instrument, OptionInstrument, SpotInstrument
 
-__all__ = ["Backtester", "OptionInstrument"]
+__all__ = [
+    "Backtester",
+    "Instrument",
+    "OptionInstrument",
+    "SpotInstrument",
+]
