@@ -8,8 +8,8 @@ from typing import Literal
 import polars as pl
 
 from backtester.dtypes import SpotInstrument, OptionInstrument
-from backtester import schemas
 from utils import checks
+from utils import schemas
 
 
 def _build_lf_priced(
@@ -204,20 +204,9 @@ def get_target_option(
     ).with_columns(
         (pl.col("expiry") - pl.col("time_end")).alias("tenor"),
     ).with_columns(
-        # (pl.col("time_end") - target_time).abs().alias("abs_err_time"),
-        pl.when(pl.col("tenor") >= target_tenor)
-            .then(pl.col("tenor") - target_tenor)
-            .otherwise(target_tenor - pl.col("tenor"))
-            .alias("abs_err_tenor"),
+        (pl.col("time_end") - target_time).abs().alias("abs_err_time"),
         (pl.col("delta") - target_delta).abs().alias("abs_err_delta"),
-        # (pl.col("tenor") - target_tenor).abs().alias("abs_err_tenor"),
-        pl.when(pl.col("time_end") >= target_time)
-            .then(pl.col("time_end") - target_time)
-            .otherwise(target_time - pl.col("time_end"))
-            .alias("abs_err_time"),
-       
-        # NOTE: some backends (e.g. DuckDB) don't support absolute values on intervals,
-        # so we'll need to implement it conditionally on the sign of the error.
+        (pl.col("tenor") - target_tenor).abs().alias("abs_err_tenor"),
     ).sort(["abs_err_time", "abs_err_tenor", "abs_err_delta"]).head(1).collect()  # fmt: off
 
     return OptionInstrument(

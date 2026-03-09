@@ -1,16 +1,8 @@
-# packages/backtester/src/backtester/schemas.py
+# packages/utils/src/utils/schemas.py
 """Reference schemas for backtester module."""
 
 from datetime import timezone
 import polars as pl
-
-
-PATHS_MARK = pl.Schema({
-    "time_start": pl.Datetime(time_zone=timezone.utc),
-    "time_end": pl.Datetime(time_zone=timezone.utc),
-    "name": pl.String(),
-    "price": pl.Float64(),
-})  # fmt: off
 
 
 PATH_RATE = pl.Schema({
@@ -20,6 +12,17 @@ PATH_RATE = pl.Schema({
     # Value
     "rate": pl.Float64(),
 })  # fmt: off
+"""Univariate rate path: `(time) => rate`."""
+
+
+PATHS_MARK = pl.Schema({
+    "time_start": pl.Datetime(time_zone=timezone.utc),
+    "time_end": pl.Datetime(time_zone=timezone.utc),
+    "name": pl.String(),
+    "price": pl.Float64(),
+})  # fmt: off
+"""Mark price paths: `(time, name) => price`."""
+
 
 BARS_SPOT = pl.Schema({
     # Timestamps
@@ -34,6 +37,8 @@ BARS_SPOT = pl.Schema({
     "px_ask": pl.Float64(),
     "px_mark": pl.Float64(),
 })  # fmt: off
+"""Spot price bars: `(time, exchange, base, quote) => **values`."""
+
 
 BARS_OPTION = pl.Schema({
     # Timestamps
@@ -52,6 +57,7 @@ BARS_OPTION = pl.Schema({
     "iv_ask": pl.Float64(),
     "iv_mark": pl.Float64(),
 })  # fmt: off
+"""Option bars: `(time, exchange, base, quote, strike, listing, expiry, kind) => **values`."""
 
 BARS_PRICED = pl.Schema({
     # Timestamps
@@ -81,3 +87,4 @@ BARS_PRICED = pl.Schema({
     "theta": pl.Float64(),
     "rho": pl.Float64(),
 })  # fmt: off
+"""Priced bars: `(time, exchange, base, quote, strike, listing, expiry, kind) => **values`."""

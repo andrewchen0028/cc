@@ -71,7 +71,6 @@ source = { editable = "packages/backtester" }
 dependencies = [
     { name = "numpy" },
     { name = "polars" },
-    { name = "python-dateutil" },
     { name = "utils" },
 ]
 
@@ -84,7 +83,6 @@ dev = [
 requires-dist = [
     { name = "numpy", specifier = ">=2.4.2" },
     { name = "polars" },
-    { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "utils", editable = "packages/utils" },
 ]
 
@@ -1477,10 +1475,18 @@ version = "0.1.0"
 source = { editable = "packages/utils" }
 dependencies = [
     { name = "ibis-framework" },
+    { name = "numpy" },
+    { name = "polars" },
+    { name = "python-dateutil" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "ibis-framework" }]
+requires-dist = [
+    { name = "ibis-framework" },
+    { name = "numpy", specifier = ">=2.4.2" },
+    { name = "polars" },
+    { name = "python-dateutil", specifier = ">=2.9.0.post0" },
+]
 
 [[package]]
 name = "uvicorn"

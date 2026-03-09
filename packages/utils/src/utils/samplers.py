@@ -1,5 +1,5 @@
-# packages/backtester/src/backtester/samplers3.py
-"""Third-generation sample data generators for backtester module."""
+# packages/utils/src/utils/samplers.py
+"""Sample data generators."""
 
 from datetime import datetime, timedelta, timezone
 from dateutil.rrule import rrule, DAILY, WEEKLY, MONTHLY, FR
@@ -8,9 +8,8 @@ from typing import Collection, Sequence
 import numpy as np
 import polars as pl
 
-
-from backtester import schemas
 from utils import checks
+from utils import schemas
 
 
 def get_path_rate(

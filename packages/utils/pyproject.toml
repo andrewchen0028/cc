@@ -2,7 +2,12 @@
 name = "utils"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["ibis-framework"]
+dependencies = [
+    "ibis-framework",
+    "numpy>=2.4.2",
+    "polars",
+    "python-dateutil>=2.9.0.post0",
+]
 
 [build-system]
 requires = ["uv_build"]
