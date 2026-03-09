@@ -53,11 +53,15 @@ def _build_lf_priced(
         p = k * (0 - r * tau).exp() * norm_cdf(0 - dm) - s * norm_cdf(0 - dp)
         return pl.when(is_call).then(c).otherwise(p).clip(0)
 
-    lff_rate = lf_rate.pipe(checks.check_schema, schemas.PATH_RATE)
+    checks.require(
+        checks.has_schema(lf_rate, schemas.PATH_RATE),
+        checks.has_schema(lf_spot, schemas.BARS_SPOT),
+        checks.has_schema(lf_option, schemas.BARS_OPTION),
+    )
 
-    lff_spot = lf_spot.pipe(
-        checks.check_schema, schemas.BARS_SPOT
-    ).filter([
+    lff_rate = lf_rate
+
+    lff_spot = lf_spot.filter([
         pl.col("exchange") == spot_exchange,
         pl.col("base") == spot_base,
         pl.col("quote") == spot_quote,
@@ -67,9 +71,7 @@ def _build_lf_priced(
         "px_mark",
     ]).rename({"px_mark": "spot"})  # fmt: off
 
-    lff_option = lf_option.pipe(
-        checks.check_schema, schemas.BARS_OPTION
-    ).filter([
+    lff_option = lf_option.filter([
         pl.col("exchange") == option_exchange,
         pl.col("base") == option_base,
         pl.col("quote") == option_quote,
@@ -117,7 +119,8 @@ def _build_lf_priced(
         *["delta", "gamma", "vega", "theta", "rho"],
     ])  # fmt: off
 
-    return lff_priced.pipe(checks.check_schema, schemas.BARS_PRICED)
+    checks.require(checks.has_schema(lff_priced, schemas.BARS_PRICED))
+    return lff_priced
 
 
 def get_bars_spot(
@@ -137,7 +140,8 @@ def get_bars_spot(
     if end_time is not None:
         predicates.append(pl.col("time_end") <= end_time)
 
-    return lf_spot.pipe(checks.check_schema, schemas.BARS_SPOT).filter(predicates)
+    checks.require(checks.has_schema(lf_spot, schemas.BARS_SPOT))
+    return lf_spot.filter(predicates)
 
 
 def get_bars_option(
@@ -161,7 +165,8 @@ def get_bars_option(
     if end_time is not None:
         predicates.append(pl.col("time_end") <= end_time)
 
-    return lf_option.pipe(checks.check_schema, schemas.BARS_OPTION).filter(predicates)
+    checks.require(checks.has_schema(lf_option, schemas.BARS_OPTION))
+    return lf_option.filter(predicates)
 
 
 def get_target_option(

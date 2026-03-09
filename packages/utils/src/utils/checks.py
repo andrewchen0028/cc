@@ -1,6 +1,7 @@
 # packages/utils/src/utils/checks.py
 """Utility functions for validation checks."""
 
+import warnings
 from datetime import datetime, time, timedelta
 from typing import Collection
 
@@ -8,60 +9,85 @@ import numpy as np
 import polars as pl
 
 
-def check_positive(name: str, value: float) -> list[str]:
-    if value <= 0:
-        return [f"{name} must be positive, got {value}"]
-    return []
+def require(*results: str | None) -> None:
+    if errors := [e for e in results if e is not None]:
+        raise ValueError("\n".join(errors))
 
 
-def check_one_of(name: str, value: object, options: Collection) -> list[str]:
-    if value not in options:
-        return [f"{name} must be one of {set(options)}, got {value!r}"]
-    return []
+def recommend(*results: str | None) -> None:
+    for w in results:
+        if w is not None:
+            warnings.warn(w)
 
 
-def check_is_utc(name: str, dt: datetime) -> list[str]:
+def is_gt(left: str, a: object, right: str, b: object) -> str | None:
+    if not a > b:  # type: ignore[operator]
+        return f"expected {left} > {right}, got {a!r} > {b!r}"
+    return None
+
+
+def is_ge(left: str, a: object, right: str, b: object) -> str | None:
+    if not a >= b:  # type: ignore[operator]
+        return f"expected {left} >= {right}, got {a!r} >= {b!r}"
+    return None
+
+
+def is_lt(left: str, a: object, right: str, b: object) -> str | None:
+    if not a < b:  # type: ignore[operator]
+        return f"expected {left} < {right}, got {a!r} < {b!r}"
+    return None
+
+
+def is_le(left: str, a: object, right: str, b: object) -> str | None:
+    if not a <= b:  # type: ignore[operator]
+        return f"expected {left} <= {right}, got {a!r} <= {b!r}"
+    return None
+
+
+def is_eq(left: str, a: object, right: str, b: object) -> str | None:
+    if not a == b:
+        return f"expected {left} == {right}, got {a!r} == {b!r}"
+    return None
+
+
+def is_in(name: str, obj: object, objs: Collection) -> str | None:
+    if obj not in objs:
+        return f"{name} must be one of {set(objs)}, got {obj!r}"
+    return None
+
+
+def is_utc(name: str, dt: datetime) -> str | None:
     if dt.tzinfo is None or dt.utcoffset() != timedelta(0):
-        return [f"{name} must be UTC, got tzinfo={dt.tzinfo}"]
-    return []
+        return f"{name} must be UTC, got tzinfo={dt.tzinfo}"
+    return None
 
 
-def check_datetime_order(t0: datetime, tf: datetime, strict: bool = True) -> list[str]:
-    if strict and tf <= t0:
-        return [f"tf must be after t0, got t0={t0} and tf={tf}"]
-    if not strict and tf < t0:
-        return [f"tf must be at or after t0, got t0={t0} and tf={tf}"]
-    return []
-
-
-def check_datetime_time(name: str, dt: datetime, expected: time) -> list[str]:
+def has_time(name: str, dt: datetime, expected: time) -> str | None:
     if dt.time() != expected:
-        return [f"{name} time is not {expected}, got {dt.time()}"]
-    return []
+        return f"{name} time is not {expected}, got {dt.time()}"
+    return None
 
 
-def check_array_shape(
+def has_shape(
     name: str, a: np.typing.ArrayLike, expected: int | tuple[int, ...]
-) -> list[str]:
+) -> str | None:
     arr = np.asarray(a, dtype=float)
     if isinstance(expected, int):
         expected = (expected,)
     if arr.shape != expected:
-        return [f"{name} must have shape {expected}, got {arr.shape}"]
-    return []
+        return f"{name} must have shape {expected}, got {arr.shape}"
+    return None
 
 
-def check_matrix_positive_semidefinite(name: str, m: np.typing.ArrayLike) -> list[str]:
+def is_positive_semidefinite(name: str, m: np.typing.ArrayLike) -> str | None:
     a = np.asarray(m, dtype=float)
     eigenvalues = np.linalg.eigvalsh(a)
     if np.any(eigenvalues < -1e-10):
-        return [
-            f"{name} must be positive semi-definite, got min eigenvalue {eigenvalues.min():.6e}"
-        ]
-    return []
+        return f"{name} must be positive semi-definite, got min eigenvalue {eigenvalues.min():.6e}"
+    return None
 
 
-def check_schema(lf: pl.LazyFrame, expected: pl.Schema) -> pl.LazyFrame:
+def has_schema(lf: pl.LazyFrame, expected: pl.Schema) -> str | None:
     actual = lf.collect_schema()
     errors = []
 
@@ -75,5 +101,5 @@ def check_schema(lf: pl.LazyFrame, expected: pl.Schema) -> pl.LazyFrame:
                 f"\n\tgot: {actual[col]}"
             )
     if errors:
-        raise ValueError("\n".join(errors))
-    return lf
+        return "\n".join(errors)
+    return None

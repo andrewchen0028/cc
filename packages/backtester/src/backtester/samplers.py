@@ -38,12 +38,11 @@ def get_path_rate(
             - time_end
             - rate
     """
-    if errors := [
-        *checks.check_is_utc("t0", t0),
-        *checks.check_is_utc("tf", tf),
-        *checks.check_datetime_order(t0, tf),
-    ]:
-        raise ValueError(f"Invalid input\n{'\n'.join(f'- {e}' for e in errors)}")
+    checks.require(
+        checks.is_utc("t0", t0),
+        checks.is_utc("tf", tf),
+        checks.is_lt("t0", t0, "tf", tf),
+    )
 
     # Build time grid using polars datetime_range
     times_start = pl.datetime_range(t0, tf - dt, dt, eager=True).alias("time_start")
@@ -59,13 +58,13 @@ def get_path_rate(
         rates.append(r)
         r = r + kappa * (theta - r) * dt_years + sigma * np.sqrt(dt_years) * dW[i]
 
-    return pl.LazyFrame(
-        {
-            "time_start": times_start,
-            "time_end": times_end,
-            "rate": rates,
-        }
-    ).pipe(checks.check_schema, schemas.PATH_RATE)
+    out = pl.LazyFrame(
+        {"time_start": times_start, "time_end": times_end, "rate": rates}
+    )
+
+    checks.require(out.pipe(checks.has_schema, schemas.PATH_RATE))
+
+    return out
 
 
 def get_paths_mark(
@@ -158,16 +157,15 @@ def get_paths_mark(
             sigma_mat = sigma_arr
 
     # Validation
-    if errors := [
-        *checks.check_is_utc("t0", t0),
-        *checks.check_is_utc("tf", tf),
-        *checks.check_datetime_order(t0, tf),
-        *checks.check_array_shape("s0", s0, n_assets),
-        *checks.check_array_shape("mu", mu, n_assets),
-        *checks.check_array_shape("sigma", sigma_mat, (n_assets, n_assets)),
-        *checks.check_matrix_positive_semidefinite("sigma", sigma_mat),
-    ]:
-        raise ValueError(f"Invalid input\n{'\n'.join(f'- {e}' for e in errors)}")
+    checks.require(
+        checks.is_utc("t0", t0),
+        checks.is_utc("tf", tf),
+        checks.is_lt("t0", t0, "tf", tf),
+        checks.has_shape("s0", s0, n_assets),
+        checks.has_shape("mu", mu, n_assets),
+        checks.has_shape("sigma", sigma_mat, (n_assets, n_assets)),
+        checks.is_positive_semidefinite("sigma", sigma_mat),
+    )
 
     # Build time grid
     times_start = pl.datetime_range(t0, tf - dt, dt, eager=True).alias("time_start")
@@ -199,7 +197,10 @@ def get_paths_mark(
             )
         )
 
-    return pl.concat(dfs).lazy().pipe(checks.check_schema, schemas.PATHS_MARK)
+    out = pl.concat(dfs).lazy()
+
+    checks.require(out.pipe(checks.has_schema, schemas.PATHS_MARK))
+    return out
 
 
 def to_bars_spot(
@@ -226,7 +227,8 @@ def to_bars_spot(
             - px_ask
             - px_mark
     """
-    paths_mark = checks.check_schema(paths_mark, schemas.PATHS_MARK)
+    checks.require(paths_mark.pipe(checks.has_schema, schemas.PATHS_MARK))
+
     exchanges = [exchanges] if isinstance(exchanges, str) else exchanges
     quotes = [quotes] if isinstance(quotes, str) else quotes
 
@@ -238,7 +240,8 @@ def to_bars_spot(
             (pl.col("px_mark") * (1 + 0.01)).alias("px_ask"),
         ])  # fmt: off
 
-    return checks.check_schema(out, schemas.BARS_SPOT)
+    checks.require(out.pipe(checks.has_schema, schemas.BARS_SPOT))
+    return out
 
 
 # Seven daily contracts (08:00 UTC)
@@ -352,4 +355,5 @@ def to_bars_option(
             "iv_mark",
         ])  # fmt: off
 
-    return out.pipe(checks.check_schema, schemas.BARS_OPTION)
+    checks.require(out.pipe(checks.has_schema, schemas.BARS_OPTION))
+    return out

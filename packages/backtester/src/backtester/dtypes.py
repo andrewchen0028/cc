@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, time
 from typing import Literal
-import warnings
 
 from utils import checks
 
@@ -17,20 +16,17 @@ class OptionInstrument:
     kind: Literal["c", "p"]
 
     def __post_init__(self) -> None:
-        if errors := [
-            *checks.check_positive("strike", self.strike),
-            *checks.check_is_utc("listing", self.listing),
-            *checks.check_is_utc("expiry", self.expiry),
-            *checks.check_datetime_order(self.listing, self.expiry),
-            *checks.check_one_of("kind", self.kind, ("c", "p")),
-        ]:
-            raise ValueError("\n".join(errors))
-        if warnings_ := [
-            *checks.check_datetime_time("listing", self.listing, time(8, 0, 0)),
-            *checks.check_datetime_time("expiry", self.expiry, time(8, 0, 0)),
-        ]:
-            for w in warnings_:
-                warnings.warn(w)
+        checks.require(
+            checks.is_gt("strike", self.strike, "0", 0),
+            checks.is_utc("listing", self.listing),
+            checks.is_utc("expiry", self.expiry),
+            checks.is_lt("listing", self.listing, "expiry", self.expiry),
+            checks.is_in("kind", self.kind, ("c", "p")),
+        )
+        checks.recommend(
+            checks.has_time("listing", self.listing, time(8, 0, 0)),
+            checks.has_time("expiry", self.expiry, time(8, 0, 0)),
+        )
 
 
 @dataclass(frozen=True, slots=True)
