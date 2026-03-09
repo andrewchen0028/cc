@@ -88,3 +88,6 @@ BARS_PRICED = pl.Schema({
     "rho": pl.Float64(),
 })  # fmt: off
 """Priced bars: `(time, exchange, base, quote, strike, listing, expiry, kind) => **values`."""
+
+
+POSITION = BARS_PRICED | pl.Schema({"qty": pl.Float64()})
