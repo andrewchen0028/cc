@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Literal, Mapping, Protocol
 
-from backtester.types import Instrument
+from backtester.dtypes import Instrument
 
 
 class Strategy(Protocol):

@@ -1,0 +1,2 @@
+- Using Narwhals, the DuckDB execution of Black-numerical pricing is unacceptably slow.
+  - (e.g., 0.5s for Polars vs. 20s for DuckDB, for one month at hourly intervals)

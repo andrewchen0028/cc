@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 
 from backtester import io
-from backtester.types import SpotInstrument
+from backtester.dtypes import SpotInstrument
 from backtester import samplers
 
 t0 = datetime(2023, 1, 1, tzinfo=timezone.utc)
