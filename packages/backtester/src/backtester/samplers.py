@@ -162,9 +162,9 @@ def get_paths_mark(
         *checks.check_datetime_timezone(t0, timezone.utc),
         *checks.check_datetime_timezone(tf, timezone.utc),
         *checks.check_datetime_order(t0, tf),
-        *checks.check_vector_length("s0", s0, n_assets),
-        *checks.check_vector_length("mu", mu, n_assets),
-        *checks.check_matrix_shape("sigma", sigma_mat, (n_assets, n_assets)),
+        *checks.check_array_shape("s0", s0, n_assets),
+        *checks.check_array_shape("mu", mu, n_assets),
+        *checks.check_array_shape("sigma", sigma_mat, (n_assets, n_assets)),
         *checks.check_matrix_positive_semidefinite("sigma", sigma_mat),
     ]:
         raise ValueError(f"Invalid input\n{'\n'.join(f'- {e}' for e in errors)}")

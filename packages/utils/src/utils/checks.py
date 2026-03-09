@@ -21,21 +21,14 @@ def check_datetime_order(t0: datetime, tf: datetime, strict: bool = True) -> lis
     return []
 
 
-def check_vector_length(name: str, v: np.typing.ArrayLike, expected: int) -> list[str]:
-    a = np.asarray(v, dtype=float)
-    if a.ndim != 1:
-        return [f"{name} must be 1-D, got shape {a.shape}"]
-    if a.shape[0] != expected:
-        return [f"{name} must have length {expected}, got {a.shape[0]}"]
-    return []
-
-
-def check_matrix_shape(
-    name: str, m: np.typing.ArrayLike, expected: tuple[int, ...]
+def check_array_shape(
+    name: str, a: np.typing.ArrayLike, expected: int | tuple[int, ...]
 ) -> list[str]:
-    a = np.asarray(m, dtype=float)
-    if a.shape != expected:
-        return [f"{name} must have shape {expected}, got {a.shape}"]
+    arr = np.asarray(a, dtype=float)
+    if isinstance(expected, int):
+        expected = (expected,)
+    if arr.shape != expected:
+        return [f"{name} must have shape {expected}, got {arr.shape}"]
     return []
 
 
