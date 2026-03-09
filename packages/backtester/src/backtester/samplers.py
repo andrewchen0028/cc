@@ -321,7 +321,7 @@ def to_bars_option(
         .select(["listing", "expiry", "strike", "kind"]) \
         .join(marks, how="cross") \
         .filter([
-            pl.col("time_start") <= pl.col("listing"),
+            pl.col("listing") <= pl.col("time_start"),
             pl.col("time_end") <= pl.col("expiry"),
         ]) \
         .with_columns([
