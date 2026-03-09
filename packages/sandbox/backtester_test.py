@@ -1,23 +1,28 @@
 from datetime import datetime, timedelta, timezone
 
 from backtester.backtester import MarketDataProvider
+from backtester.instruments import SpotInstrument
 from backtester import samplers
 
 t0 = datetime(2023, 1, 1, tzinfo=timezone.utc)
-tf = datetime(2023, 2, 1, tzinfo=timezone.utc)
+tt = datetime(2023, 6, 30, tzinfo=timezone.utc)
+tf = datetime(2023, 12, 31, tzinfo=timezone.utc)
 dt = timedelta(hours=1)
 
 path_rate = samplers.get_path_rate()
 paths_mark = samplers.get_paths_mark()
 bars_spot = paths_mark.pipe(samplers.to_bars_spot, ["binc", "cbse"], ["usd", "usdt"])
-bars_option = paths_mark.pipe(
-    samplers.to_bars_option,
-    "drbt",
-    "btc",
-    "usd",
-    rules=samplers._MONTHLY,
-    n_log_moneynesses=3,
-)
+bars_option = paths_mark.pipe(samplers.to_bars_option, "drbt", "btc", "usd")
 
-mdp = MarketDataProvider(path_rate, bars_spot, bars_option)
-mdp._get_lf_priced().collect()
+print(
+    MarketDataProvider(path_rate, bars_spot, bars_option).get_target_option(
+        "drbt",
+        "btc",
+        "usd",
+        "c",
+        SpotInstrument("cbse", "btc", "usd"),
+        target_time=tt,
+        target_delta=0.50,
+        target_tenor=timedelta(days=30),
+    )
+)

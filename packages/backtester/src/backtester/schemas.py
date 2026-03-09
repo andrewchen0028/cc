@@ -64,7 +64,7 @@ BARS_PRICED = nw.Schema({
     "strike": nw.Float64(),
     "listing": nw.Datetime(time_zone=timezone.utc),
     "expiry": nw.Datetime(time_zone=timezone.utc),
-    "is_call": nw.Boolean(),
+    "kind": nw.String(),
     # Values (spot & rate)
     "spot": nw.Float64(),
     "rate": nw.Float64(),

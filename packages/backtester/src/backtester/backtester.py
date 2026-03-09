@@ -3,56 +3,35 @@
 
 from __future__ import annotations
 from datetime import datetime, timedelta
-from typing import Literal, Mapping, Protocol
+from narwhals.typing import LazyFrameT
+from typing import Any, Literal, Mapping, Protocol
 
 import narwhals as nw
 
 from backtester.instruments import Instrument, OptionInstrument, SpotInstrument
 from backtester import schemas
 from utils import checks
-from utils.stats import norm_cdf
-
-
-_US_PER_YEAR = 365.25 * 24 * 3600 * 1e6
-
-_KEYS = [
-    "time_start", "time_end",
-    "exchange_spot", "base_spot", "quote_spot",
-    "exchange_option", "base_option", "quote_option",
-    "strike", "listing", "expiry", "kind",
-]  # fmt: off
-
-
-def _bs_price(
-    s: nw.Expr,
-    k: nw.Expr,
-    r: nw.Expr,
-    sigma: nw.Expr,
-    tau: nw.Expr,
-) -> nw.Expr:
-    """Black-Scholes price, dispatched on 'kind' column."""
-    d1 = ((s / k).log() + (r + 0.5 * sigma * sigma) * tau) / (sigma * tau.sqrt())
-    d2 = d1 - sigma * tau.sqrt()
-    df = (0 - r * tau).exp()  # discount factor
-    call = s * norm_cdf(d1) - k * df * norm_cdf(d2)
-    put = k * df * norm_cdf(0 - d2) - s * norm_cdf(0 - d1)
-    return nw.when(nw.col("kind") == "c").then(call).otherwise(put)
 
 
 class MarketDataProvider:
     def __init__(
         self,
-        lf_rate: nw.LazyFrame,
-        lf_spot: nw.LazyFrame,
-        lf_option: nw.LazyFrame,
+        lf_rate: LazyFrameT,
+        lf_spot: LazyFrameT,
+        lf_option: LazyFrameT,
     ) -> None:
         self.lf_rate = checks.check_schema(nw.from_native(lf_rate), schemas.PATH_RATE)  # fmt: off
         self.lf_spot = checks.check_schema(nw.from_native(lf_spot), schemas.BARS_SPOT)  # fmt: off
         self.lf_option = checks.check_schema(nw.from_native(lf_option), schemas.BARS_OPTION)  # fmt: off
-        # self.lf_priced = self._get_lf_priced()
 
     def _get_lf_priced(
         self,
+        option_exchange: str,
+        option_base: str,
+        option_quote: str,
+        spot_exchange: str,
+        spot_base: str,
+        spot_quote: str,
         *,
         ds: float = 0.01,
         dr: float = 0.0001,
@@ -84,25 +63,23 @@ class MarketDataProvider:
             p = k * (0 - r * tau).exp() * norm_cdf(0 - dm) - s * norm_cdf(0 - dp)
             return nw.when(is_call).then(c).otherwise(p)
 
-        # Note that lf_option and lf_spot may contain multiple instruments.
-        # We'll accept a mapping from option (exchange, base, quote) to spot (exchange, base quote),
-        # to get a spot reference instrument for each option instrument.
-        # For now just handle one item from the mapping.
-        exchange_option, base_option, quote_option = "drbt", "btc", "usd"
-        exchange_spot, base_spot, quote_spot = "cbse", "btc", "usd"
-
         lff_option = self.lf_option.filter([
-            nw.col("exchange") == exchange_option,
-            nw.col("base") == base_option,
-            nw.col("quote") == quote_option,
+            nw.col("exchange") == option_exchange,
+            nw.col("base") == option_base,
+            nw.col("quote") == option_quote,
         ]).with_columns([
             nw.when(nw.col("kind") == "c").then(True).otherwise(False).alias("is_call")
         ])  # fmt: off
+
         lff_spot = self.lf_spot.filter([
-            nw.col("exchange") == exchange_spot,
-            nw.col("base") == base_spot,
-            nw.col("quote") == quote_spot,
-        ]).select(["time_start", "time_end", "px_mark"]).rename({"px_mark": "spot"})  # fmt: off
+            nw.col("exchange") == spot_exchange,
+            nw.col("base") == spot_base,
+            nw.col("quote") == spot_quote,
+        ]).select([
+            "time_start",
+            "time_end",
+            "px_mark",
+        ]).rename({"px_mark": "spot"})  # fmt: off
 
         s = nw.col("spot")
         k = nw.col("strike")
@@ -112,7 +89,7 @@ class MarketDataProvider:
         is_call = nw.col("is_call")
 
         keys = ["time_start", "time_end"] \
-            + ["exchange", "base", "quote", "strike", "listing", "expiry", "is_call"] \
+            + ["exchange", "base", "quote", "strike", "listing", "expiry", "kind"] \
             + ["spot", "rate", "iv_bid", "iv_ask", "iv_mark"]  # fmt: off
 
         lff_priced = lff_option \
@@ -152,8 +129,8 @@ class MarketDataProvider:
         *,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-    ) -> nw.LazyFrame:
-        return nw.from_native(self.lf_spot).filter(
+    ) -> nw.LazyFrame[Any]:
+        return self.lf_spot.filter(
             nw.col("exchange") == spot.exchange,
             nw.col("base") == spot.base,
             nw.col("quote") == spot.quote,
@@ -167,8 +144,8 @@ class MarketDataProvider:
         *,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-    ) -> nw.LazyFrame:
-        return nw.from_native(self.lf_option).filter(
+    ) -> nw.LazyFrame[Any]:
+        return self.lf_option.filter(
             nw.col("exchange") == option.exchange,
             nw.col("base") == option.base,
             nw.col("quote") == option.quote,
@@ -180,39 +157,50 @@ class MarketDataProvider:
             nw.col("time_end") < end_time if end_time is not None else True,
         )
 
-    # def get_target_option(
-    #     self,
-    #     exchange: str,
-    #     base: str,
-    #     quote: str,
-    #     kind: Literal["c", "p"],
-    #     *,
-    #     target_time: datetime,
-    #     target_delta: float,
-    #     target_tenor: timedelta,
-    # ) -> OptionInstrument:
-    #     df = nw.from_native(self.lf_priced).filter(
-    #         nw.col("exchange") == exchange,
-    #         nw.col("base") == base,
-    #         nw.col("quote") == quote,
-    #         nw.col("kind") == kind
-    #     ).with_columns(
-    #         (nw.col("expiry") - nw.col("time_end")).alias("tenor"),
-    #     ).with_columns(
-    #         (nw.col("time_end") - target_time).abs().alias("abs_err_time"),
-    #         (nw.col("delta") - target_delta).abs().alias("abs_err_delta"),
-    #         (nw.col("tenor") - target_tenor).abs().alias("abs_err_tenor"),
-    #     ).sort(["abs_err_time", "abs_err_tenor", "abs_err_delta"]).head(1).collect()  # fmt: off
+    def get_target_option(
+        self,
+        option_exchange: str,
+        option_base: str,
+        option_quote: str,
+        option_kind: Literal["c", "p"],
+        spot_instrument: SpotInstrument,
+        *,
+        target_time: datetime,
+        target_delta: float,
+        target_tenor: timedelta,
+    ) -> OptionInstrument:
+        if option_base != spot_instrument.base:
+            raise ValueError("Option and spot base assets must match.")
 
-    #     return OptionInstrument(
-    #         exchange=df["exchange"].item(),
-    #         base=df["base"].item(),
-    #         quote=df["quote"].item(),
-    #         strike=df["strike"].item(),
-    #         listing=df["listing"].item(),
-    #         expiry=df["expiry"].item(),
-    #         kind=df["kind"].item(),
-    #     )
+        df = self._get_lf_priced(
+            option_exchange=option_exchange,
+            option_base=option_base,
+            option_quote=option_quote,
+            spot_exchange=spot_instrument.exchange,
+            spot_base=spot_instrument.base,
+            spot_quote=spot_instrument.quote,
+        ).filter(
+            nw.col("exchange") == option_exchange,
+            nw.col("base") == option_base,
+            nw.col("quote") == option_quote,
+            nw.col("kind") == option_kind
+        ).with_columns(
+            (nw.col("expiry") - nw.col("time_end")).alias("tenor"),
+        ).with_columns(
+            (nw.col("time_end") - target_time).abs().alias("abs_err_time"),
+            (nw.col("delta") - target_delta).abs().alias("abs_err_delta"),
+            (nw.col("tenor") - target_tenor).abs().alias("abs_err_tenor"),
+        ).sort(["abs_err_time", "abs_err_tenor", "abs_err_delta"]).head(1).collect()  # fmt: off
+
+        return OptionInstrument(
+            exchange=df["exchange"].item(),
+            base=df["base"].item(),
+            quote=df["quote"].item(),
+            strike=df["strike"].item(),
+            listing=df["listing"].item(),
+            expiry=df["expiry"].item(),
+            kind=df["kind"].item(),
+        )
 
 
 class Strategy(Protocol):
