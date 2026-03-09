@@ -1480,6 +1480,11 @@ dependencies = [
     { name = "python-dateutil" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "ibis-framework" },
@@ -1487,6 +1492,9 @@ requires-dist = [
     { name = "polars" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.0.2" }]
 
 [[package]]
 name = "uvicorn"

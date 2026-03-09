@@ -21,26 +21,38 @@ def recommend(*results: str | None) -> None:
 
 
 def is_gt(left: str, a: object, right: str, b: object) -> str | None:
-    if not a > b:  # type: ignore[operator]
-        return f"expected {left} > {right}, got {a!r} > {b!r}"
+    try:
+        if not a > b:  # type: ignore[operator]
+            return f"expected {left} > {right}, got {a!r} > {b!r}"
+    except TypeError as e:
+        return f"expected {left} > {right}, got {e}"
     return None
 
 
 def is_ge(left: str, a: object, right: str, b: object) -> str | None:
-    if not a >= b:  # type: ignore[operator]
-        return f"expected {left} >= {right}, got {a!r} >= {b!r}"
+    try:
+        if not a >= b:  # type: ignore[operator]
+            return f"expected {left} >= {right}, got {a!r} >= {b!r}"
+    except TypeError as e:
+        return f"expected {left} >= {right}, got {e}"
     return None
 
 
 def is_lt(left: str, a: object, right: str, b: object) -> str | None:
-    if not a < b:  # type: ignore[operator]
-        return f"expected {left} < {right}, got {a!r} < {b!r}"
+    try:
+        if not a < b:  # type: ignore[operator]
+            return f"expected {left} < {right}, got {a!r} < {b!r}"
+    except TypeError as e:
+        return f"expected {left} < {right}, got {e}"
     return None
 
 
 def is_le(left: str, a: object, right: str, b: object) -> str | None:
-    if not a <= b:  # type: ignore[operator]
-        return f"expected {left} <= {right}, got {a!r} <= {b!r}"
+    try:
+        if not a <= b:  # type: ignore[operator]
+            return f"expected {left} <= {right}, got {a!r} <= {b!r}"
+    except TypeError as e:
+        return f"expected {left} <= {right}, got {e}"
     return None
 
 
