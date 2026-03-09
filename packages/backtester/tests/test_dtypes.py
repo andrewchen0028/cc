@@ -49,7 +49,7 @@ def test_option_instrument_rejects_zero_strike():
 
 
 def test_option_instrument_rejects_naive_listing():
-    with pytest.raises(ValueError):
+    with pytest.raises((ValueError, ExceptionGroup)):
         _make_option(listing=datetime(2023, 1, 13, 8, 0, 0))
 
 

@@ -9,97 +9,112 @@ import numpy as np
 import polars as pl
 
 
-def require(*results: str | None) -> None:
+class WarningGroup(ExceptionGroup, UserWarning):
+    """ExceptionGroup that can be issued via warnings.warn."""
+
+    def __new__(cls, message: str, exceptions: list[Warning]) -> "WarningGroup":
+        return super().__new__(cls, message, exceptions)
+
+
+def require(*results: Exception | None) -> None:
     if errors := [e for e in results if e is not None]:
-        raise ValueError("\n".join(errors))
+        if len(errors) == 1:
+            raise errors[0]
+        raise ExceptionGroup("validation errors", errors)
 
 
-def recommend(*results: str | None) -> None:
-    for w in results:
-        if w is not None:
-            warnings.warn(w)
+def recommend(*results: Exception | None) -> None:
+    warns = [UserWarning(str(e)) for e in results if e is not None]
+    if not warns:
+        return
+    if len(warns) == 1:
+        warnings.warn(warns[0])
+    else:
+        warnings.warn(WarningGroup("validation warnings", warns))
 
 
-def is_gt(left: str, a: object, right: str, b: object) -> str | None:
+def is_gt(left: str, a: object, right: str, b: object) -> ValueError | None:
     try:
         if not a > b:  # type: ignore[operator]
-            return f"expected {left} > {right}, got {a!r} > {b!r}"
+            return ValueError(f"expected {left} > {right}, got {a!r} > {b!r}")
     except TypeError as e:
-        return f"expected {left} > {right}, got {e}"
+        return ValueError(f"expected {left} > {right}, got {e}")
     return None
 
 
-def is_ge(left: str, a: object, right: str, b: object) -> str | None:
+def is_ge(left: str, a: object, right: str, b: object) -> ValueError | None:
     try:
         if not a >= b:  # type: ignore[operator]
-            return f"expected {left} >= {right}, got {a!r} >= {b!r}"
+            return ValueError(f"expected {left} >= {right}, got {a!r} >= {b!r}")
     except TypeError as e:
-        return f"expected {left} >= {right}, got {e}"
+        return ValueError(f"expected {left} >= {right}, got {e}")
     return None
 
 
-def is_lt(left: str, a: object, right: str, b: object) -> str | None:
+def is_lt(left: str, a: object, right: str, b: object) -> ValueError | None:
     try:
         if not a < b:  # type: ignore[operator]
-            return f"expected {left} < {right}, got {a!r} < {b!r}"
+            return ValueError(f"expected {left} < {right}, got {a!r} < {b!r}")
     except TypeError as e:
-        return f"expected {left} < {right}, got {e}"
+        return ValueError(f"expected {left} < {right}, got {e}")
     return None
 
 
-def is_le(left: str, a: object, right: str, b: object) -> str | None:
+def is_le(left: str, a: object, right: str, b: object) -> ValueError | None:
     try:
         if not a <= b:  # type: ignore[operator]
-            return f"expected {left} <= {right}, got {a!r} <= {b!r}"
+            return ValueError(f"expected {left} <= {right}, got {a!r} <= {b!r}")
     except TypeError as e:
-        return f"expected {left} <= {right}, got {e}"
+        return ValueError(f"expected {left} <= {right}, got {e}")
     return None
 
 
-def is_eq(left: str, a: object, right: str, b: object) -> str | None:
+def is_eq(left: str, a: object, right: str, b: object) -> ValueError | None:
     if not a == b:
-        return f"expected {left} == {right}, got {a!r} == {b!r}"
+        return ValueError(f"expected {left} == {right}, got {a!r} == {b!r}")
     return None
 
 
-def is_in(name: str, obj: object, objs: Collection) -> str | None:
+def is_in(name: str, obj: object, objs: Collection) -> ValueError | None:
     if obj not in objs:
-        return f"{name} must be one of {set(objs)}, got {obj!r}"
+        return ValueError(f"{name} must be one of {set(objs)}, got {obj!r}")
     return None
 
 
-def is_utc(name: str, dt: datetime) -> str | None:
+def is_utc(name: str, dt: datetime) -> ValueError | None:
     if dt.tzinfo is None or dt.utcoffset() != timedelta(0):
-        return f"{name} must be UTC, got tzinfo={dt.tzinfo}"
+        return ValueError(f"{name} must be UTC, got tzinfo={dt.tzinfo}")
     return None
 
 
-def has_time(name: str, dt: datetime, expected: time) -> str | None:
+def has_time(name: str, dt: datetime, expected: time) -> ValueError | None:
     if dt.time() != expected:
-        return f"{name} time is not {expected}, got {dt.time()}"
+        return ValueError(f"{name} time is not {expected}, got {dt.time()}")
     return None
 
 
 def has_shape(
     name: str, a: np.typing.ArrayLike, expected: int | tuple[int, ...]
-) -> str | None:
+) -> ValueError | None:
     arr = np.asarray(a, dtype=float)
     if isinstance(expected, int):
         expected = (expected,)
     if arr.shape != expected:
-        return f"{name} must have shape {expected}, got {arr.shape}"
+        return ValueError(f"{name} must have shape {expected}, got {arr.shape}")
     return None
 
 
-def is_positive_semidefinite(name: str, m: np.typing.ArrayLike) -> str | None:
+def is_positive_semidefinite(name: str, m: np.typing.ArrayLike) -> ValueError | None:
     a = np.asarray(m, dtype=float)
     eigenvalues = np.linalg.eigvalsh(a)
     if np.any(eigenvalues < -1e-10):
-        return f"{name} must be positive semi-definite, got min eigenvalue {eigenvalues.min():.6e}"
+        return ValueError(
+            f"{name} must be positive semi-definite, got min eigenvalue {eigenvalues.min():.6e}"
+        )
     return None
 
 
-def has_schema(lf: pl.LazyFrame, expected: pl.Schema) -> str | None:
+def has_schema(lf: pl.LazyFrame, expected: pl.Schema) -> ValueError | None:
     actual = lf.collect_schema()
     errors = []
 
@@ -113,5 +128,5 @@ def has_schema(lf: pl.LazyFrame, expected: pl.Schema) -> str | None:
                 f"\n\tgot: {actual[col]}"
             )
     if errors:
-        return "\n".join(errors)
+        return ValueError("\n".join(errors))
     return None

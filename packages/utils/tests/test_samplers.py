@@ -31,7 +31,7 @@ def test_get_path_rate_time_order():
 
 
 def test_get_path_rate_rejects_naive_datetime():
-    with pytest.raises(ValueError):
+    with pytest.raises((ValueError, ExceptionGroup)):
         samplers.get_path_rate(datetime(2023, 1, 1), TF, DT)
 
 
