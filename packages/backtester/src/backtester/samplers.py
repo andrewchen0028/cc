@@ -39,8 +39,8 @@ def get_path_rate(
             - rate
     """
     if errors := [
-        *checks.check_datetime_timezone(t0, timezone.utc),
-        *checks.check_datetime_timezone(tf, timezone.utc),
+        *checks.check_is_utc("t0", t0),
+        *checks.check_is_utc("tf", tf),
         *checks.check_datetime_order(t0, tf),
     ]:
         raise ValueError(f"Invalid input\n{'\n'.join(f'- {e}' for e in errors)}")
@@ -159,8 +159,8 @@ def get_paths_mark(
 
     # Validation
     if errors := [
-        *checks.check_datetime_timezone(t0, timezone.utc),
-        *checks.check_datetime_timezone(tf, timezone.utc),
+        *checks.check_is_utc("t0", t0),
+        *checks.check_is_utc("tf", tf),
         *checks.check_datetime_order(t0, tf),
         *checks.check_array_shape("s0", s0, n_assets),
         *checks.check_array_shape("mu", mu, n_assets),

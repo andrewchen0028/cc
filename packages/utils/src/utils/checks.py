@@ -1,15 +1,28 @@
 # packages/utils/src/utils/checks.py
 """Utility functions for validation checks."""
 
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta
+from typing import Collection
 
 import numpy as np
 import polars as pl
 
 
-def check_datetime_timezone(dt: datetime, tzinfo: timezone) -> list[str]:
-    if dt.tzinfo != tzinfo:
-        return [f"{dt} must have {tzinfo=}, got {dt.tzinfo=}"]
+def check_positive(name: str, value: float) -> list[str]:
+    if value <= 0:
+        return [f"{name} must be positive, got {value}"]
+    return []
+
+
+def check_one_of(name: str, value: object, options: Collection) -> list[str]:
+    if value not in options:
+        return [f"{name} must be one of {set(options)}, got {value!r}"]
+    return []
+
+
+def check_is_utc(name: str, dt: datetime) -> list[str]:
+    if dt.tzinfo is None or dt.utcoffset() != timedelta(0):
+        return [f"{name} must be UTC, got tzinfo={dt.tzinfo}"]
     return []
 
 
@@ -18,6 +31,12 @@ def check_datetime_order(t0: datetime, tf: datetime, strict: bool = True) -> lis
         return [f"tf must be after t0, got t0={t0} and tf={tf}"]
     if not strict and tf < t0:
         return [f"tf must be at or after t0, got t0={t0} and tf={tf}"]
+    return []
+
+
+def check_datetime_time(name: str, dt: datetime, expected: time) -> list[str]:
+    if dt.time() != expected:
+        return [f"{name} time is not {expected}, got {dt.time()}"]
     return []
 
 
