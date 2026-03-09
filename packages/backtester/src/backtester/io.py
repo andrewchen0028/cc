@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Literal
 
+from scipy.special import ndtr
+
 import polars as pl
 
 from backtester.dtypes import SpotInstrument, OptionInstrument
@@ -45,12 +47,10 @@ def _build_lf_priced(
         tau: pl.Expr,
         is_call: pl.Expr,
     ) -> pl.Expr:
-        from utils.stats import norm_cdf
-
         dp = ((s / k).log() + (r + sigma * sigma / 2) * tau) / (sigma * tau.sqrt())
         dm = ((s / k).log() + (r - sigma * sigma / 2) * tau) / (sigma * tau.sqrt())
-        c = s * norm_cdf(dp) - k * (0 - r * tau).exp() * norm_cdf(dm)
-        p = k * (0 - r * tau).exp() * norm_cdf(0 - dm) - s * norm_cdf(0 - dp)
+        c = s * ndtr(dp) - k * (0 - r * tau).exp() * ndtr(dm)
+        p = k * (0 - r * tau).exp() * ndtr(0 - dm) - s * ndtr(0 - dp)
         return pl.when(is_call).then(c).otherwise(p).clip(0)
 
     checks.require(
