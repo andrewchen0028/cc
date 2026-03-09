@@ -61,3 +61,16 @@ from utils import checks
 - Union syntax: `str | None`, not `Optional[str]`
 - Frozen slotted dataclasses for value objects: `@dataclass(frozen=True, slots=True)`
 - Schemas defined as `nw.Schema({...})` in `backtester/schemas.py`
+
+### Learning from Mistakes
+
+When you introduce a bug and then fix it, add a note to the relevant section of this file so you don't repeat it.
+
+### Polars Expression Pitfalls
+
+- **Operator precedence with scalar * expr**: `scalar * expr_a * 60 + expr_b` binds as `((scalar * expr_a) * 60) + expr_b`, NOT `scalar * (expr_a * 60 + expr_b)`. Build the additive expression first, then scale: `(expr_a * 60 + expr_b).mul(scalar)`.
+- **Int8 overflow in datetime accessors**: `.dt.hour()`, `.dt.minute()`, `.dt.weekday()` return `Int8`. Arithmetic like `hour * 60` overflows silently. Always cast to `Int64` or `Float64` before arithmetic: `.dt.hour().cast(pl.Int64) * 60`.
+
+### Marimo Pitfalls
+
+- **Variable uniqueness across cells**: Marimo requires all non-private variable names to be unique across the entire notebook. Loop variables, imports, and any other names that appear in multiple cells must be prefixed with `_` to make them cell-private. Always use `_` prefix for: loop iteration variables, temporary variables, and imports that appear in more than one cell (or move shared imports to a single cell).
