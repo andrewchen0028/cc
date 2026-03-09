@@ -29,7 +29,6 @@ Stdlib, then third-party, then internal. Blank line between groups:
 from datetime import datetime, timedelta, timezone
 from typing import Collection, Sequence
 
-import narwhals as nw
 import numpy as np
 import polars as pl
 
@@ -37,12 +36,11 @@ from backtester import schemas
 from utils import checks
 ```
 
-### Narwhals / Polars
+### Polars
 
 - Public functions accept and return `pl.LazyFrame`
-- Wrap with `nw.from_native()` for narwhals ops, unwrap with `.to_native()`
-- Schema validation: `checks.check_schema(nw.from_native(lf), schemas.X).to_native()`
-- Use `utils.stats.norm_cdf` (Abramowitz-Stegun approximation) as a narwhals expression in place of scipy
+- Schema validation: `checks.check_schema(lf, schemas.X)`
+- Use `utils.stats.norm_cdf` (Abramowitz-Stegun approximation) as a Polars expression in place of scipy
 
 ### Formatting
 

@@ -1,28 +1,21 @@
 # packages/backtester/src/backtester/io.py
 """Input/output utilities for backtester module."""
-# TODO: test Claude modifications
 
 from __future__ import annotations
 from datetime import datetime, timedelta
-from narwhals.typing import IntoLazyFrameT
 from typing import Literal
 
-import narwhals as nw
-import narwhals.sql as ns
+import polars as pl
 
-from backtester.types import SpotInstrument, OptionInstrument
+from backtester.dtypes import SpotInstrument, OptionInstrument
 from backtester import schemas
 from utils import checks
 
 
-# NOTE: required for schemas with UTC datetimes
-ns.CONN.query("SET TimeZone = 'UTC'")
-
-
-def _get_lf_priced(
-    lf_rate: IntoLazyFrameT,
-    lf_spot: IntoLazyFrameT,
-    lf_option: IntoLazyFrameT,
+def _build_lf_priced(
+    lf_rate: pl.LazyFrame,
+    lf_spot: pl.LazyFrame,
+    lf_option: pl.LazyFrame,
     option_exchange: str,
     option_base: str,
     option_quote: str,
@@ -34,7 +27,7 @@ def _get_lf_priced(
     dr: float = 0.0001,
     dv: float = 0.01,
     dt: float = 1 / (365.25 * 24 * 60 * 60),
-) -> nw.LazyFrame:
+) -> pl.LazyFrame:
     """Black-Scholes pricing with central-difference Greeks.
 
     Args:
@@ -45,49 +38,51 @@ def _get_lf_priced(
     """
 
     def _px_bs(
-        s: nw.Expr,
-        k: nw.Expr,
-        r: nw.Expr,
-        sigma: nw.Expr,
-        tau: nw.Expr,
-        is_call: nw.Expr,
-    ) -> nw.Expr:
+        s: pl.Expr,
+        k: pl.Expr,
+        r: pl.Expr,
+        sigma: pl.Expr,
+        tau: pl.Expr,
+        is_call: pl.Expr,
+    ) -> pl.Expr:
         from utils.stats import norm_cdf
 
         dp = ((s / k).log() + (r + sigma * sigma / 2) * tau) / (sigma * tau.sqrt())
         dm = ((s / k).log() + (r - sigma * sigma / 2) * tau) / (sigma * tau.sqrt())
         c = s * norm_cdf(dp) - k * (0 - r * tau).exp() * norm_cdf(dm)
         p = k * (0 - r * tau).exp() * norm_cdf(0 - dm) - s * norm_cdf(0 - dp)
-        return nw.when(is_call).then(c).otherwise(p).clip(0)
+        return pl.when(is_call).then(c).otherwise(p).clip(0)
 
-    lf_rate_ = checks.check_schema(nw.from_native(lf_rate), schemas.PATH_RATE)
-    lf_spot_ = checks.check_schema(nw.from_native(lf_spot), schemas.BARS_SPOT)
-    lf_option_ = checks.check_schema(nw.from_native(lf_option), schemas.BARS_OPTION)
+    lff_rate = lf_rate.pipe(checks.check_schema, schemas.PATH_RATE)
 
-    lff_option = lf_option_.filter([
-        nw.col("exchange") == option_exchange,
-        nw.col("base") == option_base,
-        nw.col("quote") == option_quote,
-    ]).with_columns([
-        nw.when(nw.col("kind") == "c").then(True).otherwise(False).alias("is_call")
-    ])  # fmt: off
-
-    lff_spot = lf_spot_.filter([
-        nw.col("exchange") == spot_exchange,
-        nw.col("base") == spot_base,
-        nw.col("quote") == spot_quote,
+    lff_spot = lf_spot.pipe(
+        checks.check_schema, schemas.BARS_SPOT
+    ).filter([
+        pl.col("exchange") == spot_exchange,
+        pl.col("base") == spot_base,
+        pl.col("quote") == spot_quote,
     ]).select([
         "time_start",
         "time_end",
         "px_mark",
     ]).rename({"px_mark": "spot"})  # fmt: off
 
-    s = nw.col("spot")
-    k = nw.col("strike")
-    r = nw.col("rate")
-    v = nw.col("iv_mark")
-    tau = (nw.col("expiry") - nw.col("time_end")).dt.total_seconds() / (365 * 24 * 3600)  # fmt: off
-    is_call = nw.col("is_call")
+    lff_option = lf_option.pipe(
+        checks.check_schema, schemas.BARS_OPTION
+    ).filter([
+        pl.col("exchange") == option_exchange,
+        pl.col("base") == option_base,
+        pl.col("quote") == option_quote,
+    ]).with_columns([
+        pl.when(pl.col("kind") == "c").then(True).otherwise(False).alias("is_call")
+    ])  # fmt: off
+
+    s = pl.col("spot")
+    k = pl.col("strike")
+    r = pl.col("rate")
+    v = pl.col("iv_mark")
+    tau = (pl.col("expiry") - pl.col("time_end")).dt.total_seconds() / (365 * 24 * 3600)  # fmt: off
+    is_call = pl.col("is_call")
 
     keys = ["time_start", "time_end"] \
         + ["exchange", "base", "quote", "strike", "listing", "expiry", "kind"] \
@@ -95,11 +90,11 @@ def _get_lf_priced(
 
     lff_priced = lff_option \
         .join(lff_spot, ["time_start", "time_end"]) \
-        .join(lf_rate_, ["time_start", "time_end"]) \
+        .join(lff_rate, ["time_start", "time_end"]) \
     .with_columns([
-        _px_bs(s, k, r, nw.col("iv_bid"), tau, is_call).alias("px_bid"),
-        _px_bs(s, k, r, nw.col("iv_ask"), tau, is_call).alias("px_ask"),
-        _px_bs(s, k, r, nw.col("iv_mark"), tau, is_call).alias("px_mark"),
+        _px_bs(s, k, r, pl.col("iv_bid"), tau, is_call).alias("px_bid"),
+        _px_bs(s, k, r, pl.col("iv_ask"), tau, is_call).alias("px_ask"),
+        _px_bs(s, k, r, pl.col("iv_mark"), tau, is_call).alias("px_mark"),
     ]).with_columns([
         _px_bs(s, k, r, v, tau, is_call).alias("_"),
         _px_bs((s + ds).clip(0), k, r, v, tau, is_call).alias("_s_up"),
@@ -111,68 +106,68 @@ def _get_lf_priced(
         _px_bs(s, k, (r + dr).clip(0), v, tau, is_call).alias("_r_up"),
         _px_bs(s, k, (r - dr).clip(0), v, tau, is_call).alias("_r_dn"),
     ]).with_columns([
-        ((nw.col("_s_up") - nw.col("_s_dn")) / (2 * ds)).alias("delta"),
-        ((nw.col("_s_up") - 2 * nw.col("_") + nw.col("_s_dn")) / (ds * ds)).alias("gamma"),
-        ((nw.col("_v_up") - nw.col("_v_dn")) / (2 * dv)).alias("vega"),
-        ((nw.col("_tau_dn") - nw.col("_tau_up")) / (2 * dt)).alias("theta"),
-        ((nw.col("_r_up") - nw.col("_r_dn")) / (2 * dr)).alias("rho"),
+        ((pl.col("_s_up") - pl.col("_s_dn")) / (2 * ds)).alias("delta"),
+        ((pl.col("_s_up") - 2 * pl.col("_") + pl.col("_s_dn")) / (ds * ds)).alias("gamma"),
+        ((pl.col("_v_up") - pl.col("_v_dn")) / (2 * dv)).alias("vega"),
+        ((pl.col("_tau_dn") - pl.col("_tau_up")) / (2 * dt)).alias("theta"),
+        ((pl.col("_r_up") - pl.col("_r_dn")) / (2 * dr)).alias("rho"),
     ]).select([
         *keys,
         *["px_bid", "px_ask", "px_mark"],
         *["delta", "gamma", "vega", "theta", "rho"],
     ])  # fmt: off
 
-    return checks.check_schema(lff_priced, schemas.BARS_PRICED)
+    return lff_priced.pipe(checks.check_schema, schemas.BARS_PRICED)
 
 
 def get_bars_spot(
-    lf_spot: IntoLazyFrameT,
+    lf_spot: pl.LazyFrame,
     spot: SpotInstrument,
     *,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
-) -> IntoLazyFrameT:
-    return (
-        checks.check_schema(nw.from_native(lf_spot), schemas.BARS_SPOT)
-        .filter(
-            nw.col("exchange") == spot.exchange,
-            nw.col("base") == spot.base,
-            nw.col("quote") == spot.quote,
-            nw.col("time_start") > start_time if start_time is not None else True,
-            nw.col("time_end") < end_time if end_time is not None else True,
-        )
-        .to_native()
-    )
+) -> pl.LazyFrame:
+    predicates: list[pl.Expr] = [
+        pl.col("exchange") == spot.exchange,
+        pl.col("base") == spot.base,
+        pl.col("quote") == spot.quote,
+    ]
+    if start_time is not None:
+        predicates.append(pl.col("time_start") >= start_time)
+    if end_time is not None:
+        predicates.append(pl.col("time_end") <= end_time)
+
+    return lf_spot.pipe(checks.check_schema, schemas.BARS_SPOT).filter(predicates)
 
 
 def get_bars_option(
-    lf_option: IntoLazyFrameT,
+    lf_option: pl.LazyFrame,
     option: OptionInstrument,
     *,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
-) -> IntoLazyFrameT:
-    return (
-        checks.check_schema(nw.from_native(lf_option), schemas.BARS_OPTION)
-        .filter(
-            nw.col("exchange") == option.exchange,
-            nw.col("base") == option.base,
-            nw.col("quote") == option.quote,
-            nw.col("strike") == option.strike,
-            nw.col("listing") == option.listing,
-            nw.col("expiry") == option.expiry,
-            nw.col("kind") == option.kind,
-            nw.col("time_start") > start_time if start_time is not None else True,
-            nw.col("time_end") < end_time if end_time is not None else True,
-        )
-        .to_native()
-    )
+) -> pl.LazyFrame:
+    predicates: list[pl.Expr] = [
+        pl.col("exchange") == option.exchange,
+        pl.col("base") == option.base,
+        pl.col("quote") == option.quote,
+        pl.col("strike") == option.strike,
+        pl.col("listing") == option.listing,
+        pl.col("expiry") == option.expiry,
+        pl.col("kind") == option.kind,
+    ]
+    if start_time is not None:
+        predicates.append(pl.col("time_start") >= start_time)
+    if end_time is not None:
+        predicates.append(pl.col("time_end") <= end_time)
+
+    return lf_option.pipe(checks.check_schema, schemas.BARS_OPTION).filter(predicates)
 
 
 def get_target_option(
-    lf_rate: IntoLazyFrameT,
-    lf_spot: IntoLazyFrameT,
-    lf_option: IntoLazyFrameT,
+    lf_rate: pl.LazyFrame,
+    lf_spot: pl.LazyFrame,
+    lf_option: pl.LazyFrame,
     option_exchange: str,
     option_base: str,
     option_quote: str,
@@ -186,7 +181,7 @@ def get_target_option(
     if option_base != spot_instrument.base:
         raise ValueError("Option and spot base assets must match.")
 
-    df = _get_lf_priced(
+    df = _build_lf_priced(
         lf_rate=lf_rate,
         lf_spot=lf_spot,
         lf_option=lf_option,
@@ -197,16 +192,27 @@ def get_target_option(
         spot_base=spot_instrument.base,
         spot_quote=spot_instrument.quote,
     ).filter(
-        nw.col("exchange") == option_exchange,
-        nw.col("base") == option_base,
-        nw.col("quote") == option_quote,
-        nw.col("kind") == option_kind
+        pl.col("exchange") == option_exchange,
+        pl.col("base") == option_base,
+        pl.col("quote") == option_quote,
+        pl.col("kind") == option_kind
     ).with_columns(
-        (nw.col("expiry") - nw.col("time_end")).alias("tenor"),
+        (pl.col("expiry") - pl.col("time_end")).alias("tenor"),
     ).with_columns(
-        (nw.col("time_end") - target_time).abs().alias("abs_err_time"),
-        (nw.col("delta") - target_delta).abs().alias("abs_err_delta"),
-        (nw.col("tenor") - target_tenor).abs().alias("abs_err_tenor"),
+        # (pl.col("time_end") - target_time).abs().alias("abs_err_time"),
+        pl.when(pl.col("tenor") >= target_tenor)
+            .then(pl.col("tenor") - target_tenor)
+            .otherwise(target_tenor - pl.col("tenor"))
+            .alias("abs_err_tenor"),
+        (pl.col("delta") - target_delta).abs().alias("abs_err_delta"),
+        # (pl.col("tenor") - target_tenor).abs().alias("abs_err_tenor"),
+        pl.when(pl.col("time_end") >= target_time)
+            .then(pl.col("time_end") - target_time)
+            .otherwise(target_time - pl.col("time_end"))
+            .alias("abs_err_time"),
+       
+        # NOTE: some backends (e.g. DuckDB) don't support absolute values on intervals,
+        # so we'll need to implement it conditionally on the sign of the error.
     ).sort(["abs_err_time", "abs_err_tenor", "abs_err_delta"]).head(1).collect()  # fmt: off
 
     return OptionInstrument(

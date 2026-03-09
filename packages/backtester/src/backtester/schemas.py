@@ -2,82 +2,82 @@
 """Reference schemas for backtester module."""
 
 from datetime import timezone
-import narwhals as nw
+import polars as pl
 
 
-PATHS_MARK = nw.Schema({
-    "time_start": nw.Datetime(time_zone=timezone.utc),
-    "time_end": nw.Datetime(time_zone=timezone.utc),
-    "name": nw.String(),
-    "price": nw.Float64(),
+PATHS_MARK = pl.Schema({
+    "time_start": pl.Datetime(time_zone=timezone.utc),
+    "time_end": pl.Datetime(time_zone=timezone.utc),
+    "name": pl.String(),
+    "price": pl.Float64(),
 })  # fmt: off
 
 
-PATH_RATE = nw.Schema({
+PATH_RATE = pl.Schema({
     # Timestamps
-    "time_start": nw.Datetime(time_zone=timezone.utc),
-    "time_end": nw.Datetime(time_zone=timezone.utc),
+    "time_start": pl.Datetime(time_zone=timezone.utc),
+    "time_end": pl.Datetime(time_zone=timezone.utc),
     # Value
-    "rate": nw.Float64(),
+    "rate": pl.Float64(),
 })  # fmt: off
 
-BARS_SPOT = nw.Schema({
+BARS_SPOT = pl.Schema({
     # Timestamps
-    "time_start": nw.Datetime(time_zone=timezone.utc),
-    "time_end": nw.Datetime(time_zone=timezone.utc),
+    "time_start": pl.Datetime(time_zone=timezone.utc),
+    "time_end": pl.Datetime(time_zone=timezone.utc),
     # Identifiers
-    "exchange": nw.String(),
-    "base": nw.String(),
-    "quote": nw.String(),
+    "exchange": pl.String(),
+    "base": pl.String(),
+    "quote": pl.String(),
     # Values
-    "px_bid": nw.Float64(),
-    "px_ask": nw.Float64(),
-    "px_mark": nw.Float64(),
+    "px_bid": pl.Float64(),
+    "px_ask": pl.Float64(),
+    "px_mark": pl.Float64(),
 })  # fmt: off
 
-BARS_OPTION = nw.Schema({
+BARS_OPTION = pl.Schema({
     # Timestamps
-    "time_start": nw.Datetime(time_zone=timezone.utc),
-    "time_end": nw.Datetime(time_zone=timezone.utc),
+    "time_start": pl.Datetime(time_zone=timezone.utc),
+    "time_end": pl.Datetime(time_zone=timezone.utc),
     # Identifiers
-    "exchange": nw.String(),
-    "base": nw.String(),
-    "quote": nw.String(),
-    "strike": nw.Float64(),
-    "listing": nw.Datetime(time_zone=timezone.utc),
-    "expiry": nw.Datetime(time_zone=timezone.utc),
-    "kind": nw.String(),
+    "exchange": pl.String(),
+    "base": pl.String(),
+    "quote": pl.String(),
+    "strike": pl.Float64(),
+    "listing": pl.Datetime(time_zone=timezone.utc),
+    "expiry": pl.Datetime(time_zone=timezone.utc),
+    "kind": pl.String(),
     # Values
-    "iv_bid": nw.Float64(),
-    "iv_ask": nw.Float64(),
-    "iv_mark": nw.Float64(),
+    "iv_bid": pl.Float64(),
+    "iv_ask": pl.Float64(),
+    "iv_mark": pl.Float64(),
 })  # fmt: off
 
-BARS_PRICED = nw.Schema({
+BARS_PRICED = pl.Schema({
     # Timestamps
-    "time_start": nw.Datetime(time_zone=timezone.utc),
-    "time_end": nw.Datetime(time_zone=timezone.utc),
+    "time_start": pl.Datetime(time_zone=timezone.utc),
+    "time_end": pl.Datetime(time_zone=timezone.utc),
     # Identifiers
-    "exchange": nw.String(),
-    "base": nw.String(),
-    "quote": nw.String(),
-    "strike": nw.Float64(),
-    "listing": nw.Datetime(time_zone=timezone.utc),
-    "expiry": nw.Datetime(time_zone=timezone.utc),
-    "kind": nw.String(),
+    "exchange": pl.String(),
+    "base": pl.String(),
+    "quote": pl.String(),
+    "strike": pl.Float64(),
+    "listing": pl.Datetime(time_zone=timezone.utc),
+    "expiry": pl.Datetime(time_zone=timezone.utc),
+    "kind": pl.String(),
     # Values (spot & rate)
-    "spot": nw.Float64(),
-    "rate": nw.Float64(),
+    "spot": pl.Float64(),
+    "rate": pl.Float64(),
     # Values (option)
-    "iv_bid": nw.Float64(),
-    "iv_ask": nw.Float64(),
-    "iv_mark": nw.Float64(),
-    "px_bid": nw.Float64(),
-    "px_ask": nw.Float64(),
-    "px_mark": nw.Float64(),
-    "delta": nw.Float64(),
-    "gamma": nw.Float64(),
-    "vega": nw.Float64(),
-    "theta": nw.Float64(),
-    "rho": nw.Float64(),
+    "iv_bid": pl.Float64(),
+    "iv_ask": pl.Float64(),
+    "iv_mark": pl.Float64(),
+    "px_bid": pl.Float64(),
+    "px_ask": pl.Float64(),
+    "px_mark": pl.Float64(),
+    "delta": pl.Float64(),
+    "gamma": pl.Float64(),
+    "vega": pl.Float64(),
+    "theta": pl.Float64(),
+    "rho": pl.Float64(),
 })  # fmt: off

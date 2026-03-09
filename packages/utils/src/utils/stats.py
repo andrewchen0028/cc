@@ -1,20 +1,20 @@
 # packages/utils/src/utils/stats.py
 """Statistical functions."""
 
-import narwhals as nw
 import numpy as np
+import polars as pl
 
 
-def norm_cdf(x: nw.Expr) -> nw.Expr:
+def norm_cdf(x: pl.Expr) -> pl.Expr:
     """Abramowitz-Stegun approximation for standard normal CDF.
-    
-    Use in place of scipy.stats.norm.cdf/scipy.special.ndtr, which are not supported by Polars/Narwhals.
+
+    Use in place of scipy.stats.norm.cdf/scipy.special.ndtr, which is not supported by Polars.
 
     Args:
-        x: Narwhals expression representing input value(s)
+        x: Polars expression representing input value(s)
 
     Returns:
-        Narwhals expression representing standard normal CDF of x    
+        Polars expression representing standard normal CDF of x
     """
     p = 0.2316419
     b1 = 0.319381530
@@ -37,4 +37,4 @@ def norm_cdf(x: nw.Expr) -> nw.Expr:
     phi = (-0.5 * z * z).exp() / np.sqrt(2.0 * np.pi)
     cdf_pos = 1.0 - phi * poly
 
-    return nw.when(x >= 0).then(cdf_pos).otherwise(1.0 - cdf_pos)
+    return pl.when(x >= 0).then(cdf_pos).otherwise(1.0 - cdf_pos)

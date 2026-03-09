@@ -3,8 +3,8 @@
 
 from datetime import datetime, timezone
 
-import narwhals as nw
 import numpy as np
+import polars as pl
 
 
 def check_datetime_timezone(dt: datetime, tzinfo: timezone) -> list[str]:
@@ -30,7 +30,9 @@ def check_vector_length(name: str, v: np.typing.ArrayLike, expected: int) -> lis
     return []
 
 
-def check_matrix_shape(name: str, m: np.typing.ArrayLike, expected: tuple[int, ...]) -> list[str]:
+def check_matrix_shape(
+    name: str, m: np.typing.ArrayLike, expected: tuple[int, ...]
+) -> list[str]:
     a = np.asarray(m, dtype=float)
     if a.shape != expected:
         return [f"{name} must have shape {expected}, got {a.shape}"]
@@ -41,11 +43,13 @@ def check_matrix_positive_semidefinite(name: str, m: np.typing.ArrayLike) -> lis
     a = np.asarray(m, dtype=float)
     eigenvalues = np.linalg.eigvalsh(a)
     if np.any(eigenvalues < -1e-10):
-        return [f"{name} must be positive semi-definite, got min eigenvalue {eigenvalues.min():.6e}"]
+        return [
+            f"{name} must be positive semi-definite, got min eigenvalue {eigenvalues.min():.6e}"
+        ]
     return []
 
 
-def check_schema(lf: nw.LazyFrame, expected: nw.Schema) -> nw.LazyFrame:
+def check_schema(lf: pl.LazyFrame, expected: pl.Schema) -> pl.LazyFrame:
     actual = lf.collect_schema()
     errors = []
 

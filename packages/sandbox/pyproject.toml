@@ -8,6 +8,8 @@ dependencies = [
     "ipykernel",
     "matplotlib>=3.10.8",
     "ipdb>=0.13.13",
+    "pandas>=3.0.1",
+    "pyarrow>=23.0.1",
 ]
 
 [tool.uv.sources]

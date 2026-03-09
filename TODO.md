@@ -1,4 +1,3 @@
 - consider splitting `MarketDataProvider` into pure functions (see io.py)
 - consider moving `Strategy` into separate module
 - implement example `Strategy` (single option)
-- implement `narwhals.sql` and `sqlglot` to get Athena SQL queries

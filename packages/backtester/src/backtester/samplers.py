@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 from dateutil.rrule import rrule, DAILY, WEEKLY, MONTHLY, FR
 from typing import Collection, Sequence
 
-import narwhals as nw
 import numpy as np
 import polars as pl
 
@@ -60,11 +59,13 @@ def get_path_rate(
         rates.append(r)
         r = r + kappa * (theta - r) * dt_years + sigma * np.sqrt(dt_years) * dW[i]
 
-    return checks.check_schema(nw.from_native(pl.LazyFrame({
-        "time_start": times_start,
-        "time_end": times_end,
-        "rate": rates,
-    })), schemas.PATH_RATE).to_native()  # fmt: off
+    return pl.LazyFrame(
+        {
+            "time_start": times_start,
+            "time_end": times_end,
+            "rate": rates,
+        }
+    ).pipe(checks.check_schema, schemas.PATH_RATE)
 
 
 def get_paths_mark(
@@ -198,8 +199,7 @@ def get_paths_mark(
             )
         )
 
-    out = pl.concat(dfs).lazy()
-    return checks.check_schema(nw.from_native(out), schemas.PATHS_MARK).to_native()
+    return pl.concat(dfs).lazy().pipe(checks.check_schema, schemas.PATHS_MARK)
 
 
 def to_bars_spot(
@@ -226,9 +226,7 @@ def to_bars_spot(
             - px_ask
             - px_mark
     """
-    paths_mark = checks.check_schema(
-        nw.from_native(paths_mark), schemas.PATHS_MARK
-    ).to_native()
+    paths_mark = checks.check_schema(paths_mark, schemas.PATHS_MARK)
     exchanges = [exchanges] if isinstance(exchanges, str) else exchanges
     quotes = [quotes] if isinstance(quotes, str) else quotes
 
@@ -240,7 +238,7 @@ def to_bars_spot(
             (pl.col("px_mark") * (1 + 0.01)).alias("px_ask"),
         ])  # fmt: off
 
-    return checks.check_schema(nw.from_native(out), schemas.BARS_SPOT).to_native()
+    return checks.check_schema(out, schemas.BARS_SPOT)
 
 
 # Seven daily contracts (08:00 UTC)
@@ -354,4 +352,4 @@ def to_bars_option(
             "iv_mark",
         ])  # fmt: off
 
-    return checks.check_schema(nw.from_native(out), schemas.BARS_OPTION).to_native()
+    return out.pipe(checks.check_schema, schemas.BARS_OPTION)
