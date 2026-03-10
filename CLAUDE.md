@@ -39,8 +39,7 @@ from utils import checks
 ### Polars
 
 - Public functions accept and return `pl.LazyFrame`
-- Schema validation: `checks.check_schema(lf, schemas.X)`
-- Use `utils.stats.norm_cdf` (Abramowitz-Stegun approximation) as a Polars expression in place of scipy
+- Schema validation: `utils.checks.has_schema`
 
 ### Formatting
 
@@ -50,15 +49,13 @@ from utils import checks
 
 ### Validation
 
-- Validators return `list[str]` of errors (empty = valid)
-- Aggregate with walrus: `if errors := [*check_a(), *check_b()]:`
-- Normalize flexible inputs early: `[x] if isinstance(x, str) else x`
+- Use methods from `utils.checks` module for validation
 
 ### Types & Data
 
 - Union syntax: `str | None`, not `Optional[str]`
 - Frozen slotted dataclasses for value objects: `@dataclass(frozen=True, slots=True)`
-- Schemas defined as `nw.Schema({...})` in `backtester/schemas.py`
+- Schemas defined as `pl.Schema({...})` in `backtester/schemas.py`
 
 ### Learning from Mistakes
 

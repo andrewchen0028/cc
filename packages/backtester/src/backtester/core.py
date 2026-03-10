@@ -1,6 +1,8 @@
 # packages/backtester/src/backtester/backtester.py
 """Option backtester module."""
 
+# NOTE [@CLAUDE]: This file is just an initial sketch, don't consider it strongly.
+
 from __future__ import annotations
 from datetime import datetime, timedelta
 from dateutil import rrule
@@ -57,6 +59,7 @@ class Straddle:
 
 class Backtester:
     """Logic-object for backtesting a trading strategy against historical data."""
+
     def __init__(self, lf: pl.LazyFrame) -> None:
         """Initialize Backtester."""
         checks.require(checks.has_schema(lf, schemas.BARS_PRICED))
