@@ -1,0 +1,23 @@
+[project]
+name = "stake_optimizer"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "utils",
+    "backtester",
+    "polars",
+    "numpy>=2.4.2",
+]
+
+[tool.uv.sources]
+utils = { workspace = true }
+backtester = { workspace = true }
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

@@ -1,0 +1,14 @@
+[project]
+name = "dashboard_websocket"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "dash>=2.18",
+    "dash-extensions>=1.0",
+    "plotly>=5.0",
+    "websockets>=13.0",
+]
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
