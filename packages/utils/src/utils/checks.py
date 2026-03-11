@@ -25,6 +25,39 @@ def require(*results: Exception | None) -> None:
 
 
 def recommend(*results: Exception | None) -> None:
+    """FIXME:
+
+    This doesn't print warnings correctly, at least in notebooks. E.g.
+
+    ```python
+    OptionInstrument(
+        "drbt",
+        "btc",
+        "usd",
+        100,
+        datetime(2024, 1, 1, tzinfo=timezone.utc),
+        datetime(2025, 1, 1, tzinfo=timezone.utc),
+        OptionKind.CALL,
+    )
+    ```
+
+    output:
+
+    ```
+    .../packages/utils/src/utils/checks.py:34: WarningGroup: validation warnings (2 sub-exceptions)
+        warnings.warn(WarningGroup("validation warnings", warns))
+
+    OptionInstrument(
+        exchange='drbt',
+        base='btc',
+        quote='usd',
+        strike=100,
+        listing=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=datetime.timezone.utc),
+        expiry=datetime.datetime(2025, 1, 1, 0, 0, tzinfo=datetime.timezone.utc),
+        kind=<OptionKind.CALL: 'CALL'>
+    )
+    ```
+    """
     warns = [UserWarning(str(e)) for e in results if e is not None]
     if not warns:
         return
@@ -34,58 +67,75 @@ def recommend(*results: Exception | None) -> None:
         warnings.warn(WarningGroup("validation warnings", warns))
 
 
-def is_gt(left: str, a: object, right: str, b: object) -> ValueError | TypeError | None:
-    try:
-        _ = a > b  # type: ignore[operator]
-    except Exception as e:
-        return TypeError(f"can't compare {left} and {right}: {e}")
-
-    if not a > b:  # type: ignore[operator]
-        return ValueError(f"expected {left} > {right}, got {a!r} > {b!r}")
+def is_none(name: str, obj: object) -> ValueError | None:
+    if obj is not None:
+        return ValueError(f"{name} must be None, got {obj!r}")
     return None
 
 
-def is_ge(left: str, a: object, right: str, b: object) -> ValueError | TypeError | None:
+def is_gt(name: str, obj: object, value: object) -> ValueError | TypeError | None:
     try:
-        _ = a >= b  # type: ignore[operator]
+        _ = obj > value  # type: ignore[operator]
     except Exception as e:
-        return TypeError(f"can't compare {left} and {right}: {e}")
+        return TypeError(f"can't compare {name} and {value}: {e}")
 
-    if not a >= b:  # type: ignore[operator]
-        return ValueError(f"expected {left} >= {right}, got {a!r} >= {b!r}")
+    if not obj > value:  # type: ignore[operator]
+        return ValueError(f"expected {name} > {value}, got {obj!r}")
     return None
 
 
-def is_lt(left: str, a: object, right: str, b: object) -> ValueError | TypeError | None:
+def is_ge(name: str, obj: object, value: object) -> ValueError | TypeError | None:
     try:
-        _ = a < b  # type: ignore[operator]
+        _ = obj >= value  # type: ignore[operator]
     except Exception as e:
-        return TypeError(f"can't compare {left} and {right}: {e}")
+        return TypeError(f"can't compare {name} and {value}: {e}")
 
-    if not a < b:  # type: ignore[operator]
-        return ValueError(f"expected {left} < {right}, got {a!r} < {b!r}")
+    if not obj >= value:  # type: ignore[operator]
+        return ValueError(f"expected {name} >= {value}, got {obj!r}")
     return None
 
 
-def is_le(left: str, a: object, right: str, b: object) -> ValueError | TypeError | None:
+def is_lt(name: str, obj: object, value: object) -> ValueError | TypeError | None:
     try:
-        _ = a <= b  # type: ignore[operator]
+        _ = obj < value  # type: ignore[operator]
     except Exception as e:
-        return TypeError(f"can't compare {left} and {right}: {e}")
+        return TypeError(f"can't compare {name} and {value}: {e}")
 
-    if not a <= b:  # type: ignore[operator]
-        return ValueError(f"expected {left} <= {right}, got {a!r} <= {b!r}")
+    if not obj < value:  # type: ignore[operator]
+        return ValueError(f"expected {name} < {value}, got {obj!r}")
     return None
 
 
-def is_eq(left: str, a: object, right: str, b: object) -> ValueError | TypeError | None:
+def is_le(name: str, obj: object, value: object) -> ValueError | TypeError | None:
     try:
-        _ = a == b  # type: ignore[operator]
+        _ = obj <= value  # type: ignore[operator]
     except Exception as e:
-        return TypeError(f"can't compare {left} and {right}: {e}")
+        return TypeError(f"can't compare {name} and {value}: {e}")
 
-    if not a == b:
-        return ValueError(f"expected {left} == {right}, got {a!r} == {b!r}")
+    if not obj <= value:  # type: ignore[operator]
+        return ValueError(f"expected {name} <= {value}, got {obj!r}")
+    return None
+
+
+def is_eq(name: str, obj: object, value: object) -> ValueError | TypeError | None:
+    try:
+        _ = obj == value  # type: ignore[operator]
+    except Exception as e:
+        return TypeError(f"can't compare {name} and {value}: {e}")
+
+    if not obj == value:
+        return ValueError(f"expected {name} == {value}, got {obj!r}")
+    return None
+
+
+def is_ne(name: str, obj: object, value: object) -> ValueError | TypeError | None:
+    try:
+        _ = obj != value  # type: ignore[operator]
+    except Exception as e:
+        return TypeError(f"can't compare {name} and {value}: {e}")
+
+    if not obj != value:
+        return ValueError(f"expected {name} != {value}, got {obj!r}")
     return None
 
 
@@ -93,6 +143,15 @@ def is_in(name: str, obj: object, objs: Collection) -> ValueError | TypeError | 
     try:
         if obj not in objs:
             return ValueError(f"{name} must be one of {set(objs)}, got {obj!r}")
+    except Exception as e:
+        return TypeError(f"can't check if {name} is in {objs}: {e}")
+    return None
+
+
+def not_in(name: str, obj: object, objs: Collection) -> ValueError | TypeError | None:
+    try:
+        if obj in objs:
+            return ValueError(f"{name} must not be one of {set(objs)}, got {obj!r}")
     except Exception as e:
         return TypeError(f"can't check if {name} is in {objs}: {e}")
     return None
