@@ -40,7 +40,7 @@ def get_path_rate(
     checks.require(
         checks.is_utc("t0", t0),
         checks.is_utc("tf", tf),
-        checks.is_lt("t0", t0, "tf", tf),
+        checks.is_lt("t0", t0, tf),
     )
 
     # Build time grid using polars datetime_range
@@ -159,7 +159,7 @@ def get_paths_mark(
     checks.require(
         checks.is_utc("t0", t0),
         checks.is_utc("tf", tf),
-        checks.is_lt("t0", t0, "tf", tf),
+        checks.is_lt("t0", t0, tf),
         checks.has_shape("s0", s0, n_assets),
         checks.has_shape("mu", mu, n_assets),
         checks.has_shape("sigma", sigma_mat, (n_assets, n_assets)),
